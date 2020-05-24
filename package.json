@@ -1,0 +1,32 @@
+{
+  "name": "funar",
+  "version": "1.0.0",
+  "description": "Signature parser for functions",
+  "main": "index.js",
+  "scripts": {
+    "test": "jasmine"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/apla/funar.git"
+  },
+  "keywords": [
+    "JSDoc",
+    "AST",
+    "acorn"
+  ],
+  "author": "Ivan Baktsheev <dot.and.thing@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/apla/funar/issues"
+  },
+  "homepage": "https://github.com/apla/funar#readme",
+  "devDependencies": {
+    "esm": "^3.2.25",
+    "jasmine": "^3.5.0"
+  },
+  "dependencies": {
+    "acorn": "^7.1.0",
+    "comment-parser": "^0.7.2"
+  }
+}
