@@ -7,6 +7,8 @@ import {parse} from 'acorn';
 // https://github.com/joelday/vscode-docthis/blob/master/src/documenter.ts
 // https://alligator.io/js/traversing-ast/
 
+// https://www.npmjs.com/package/inline-comment-parser
+
 // typescript validation
 // https://github.com/pelotom/runtypes
 
@@ -18,6 +20,25 @@ import {parse} from 'acorn';
 // https://medium.com/@art_deco/how-to-ditch-typescript-for-jsdoc-212ff1978542
 // https://github.com/artdecocode/documentary
 // https://github.com/artdecocode/typal
+
+/**
+ * @typedef FunParameter
+ * @property {string} name internal function variable name
+ * @property {string} path parameter position number or destructuring locator
+ * @property {string} [description] parameter description
+ * @property {string} type parameter type
+ * @property {boolean} isOptional: false
+ */
+
+
+/**
+ * @typedef FunContract
+ * @property {string} name function name
+ * @property {string} [description] function description from JSDoc
+ * @property {Array<FunParameter>} params positional function parameters
+ * @property {Object<string,FunParameter>} named named function parameters
+ */
+
 
 function parseASTObjectPattern (node) {
 
@@ -43,19 +64,19 @@ function getASTType (astNode) {
 	}
 }
 
-function parseASTParam (astParam) {
+function parseASTParamTree (astParam) {
 	let {type, default: defaultVal, node: param} = getASTType (astParam);
 
 	// regular param f(a)
 	if (type === 'Identifier') {
 		return {variable: param.name, ...(defaultVal ? {default: defaultVal} : {})};
 	} else if (type === 'RestElement') {
-		return {...parseASTParam (param.argument), ...{rest: true, forcedType: 'Array'}};
+		return {...parseASTParamTree (param.argument), ...{rest: true, forcedType: 'Array'}};
 	// param with default value f(a=1)
 	} else if (type === 'ObjectPattern') {
 		const paramData = {object: {}, default: defaultVal}
 		param.properties.forEach (prop => {
-			paramData.object[prop.key.name] = parseASTParam(prop.value);
+			paramData.object[prop.key.name] = parseASTParamTree(prop.value);
 			// console.log (prop);
 			// key is always
 		});
@@ -65,8 +86,57 @@ function parseASTParam (astParam) {
 	}
 }
 
-function parseFunctionParams (astParams) {
-	const params = astParams.map (parseASTParam).filter (p => p);
+/**
+ * 
+ * @param {*} astParam 
+ * @param {string|number} path position or destructuring locator
+ * @returns {FunParameter[]}
+ */
+function parseASTParamNames (astParam, path) {
+	let {type, default: defaultVal, node: param} = getASTType (astParam);
+
+	// regular param f(a)
+	if (type === 'Identifier') {
+		return [{name: param.name, path: path.toString(), ...(defaultVal ? {default: defaultVal} : {})}];
+	} else if (type === 'RestElement') {
+		return [{path: path.toString(), ...parseASTParamNames (param.argument), ...{rest: true, forcedType: 'Array'}}];
+	// param with default value f(a=1)
+	} else if (type === 'ObjectPattern') {
+		const result = [];
+		param.properties.forEach (prop => {
+			const propPath = `${path}.${prop.key.name}`;
+			const {type: propValType, default: propValDefaultVal, node: propValNode} = getASTType (prop.value);
+			if (propValType === 'Identifier') {
+				result.push ({
+					name: propValNode.name,
+					path: propPath,
+					...(propValDefaultVal ? {default: propValDefaultVal} : {})
+				});
+			} else if (propValType === 'ObjectPattern') {
+				result.push (...parseASTParamNames(propValNode, propPath));
+			}
+			// key is always
+		});
+		return result;
+	} else {
+		console.log (`unexpected parameter of type ${type}`);
+	}
+}
+
+
+/**
+ * 
+ */
+// app.get ('/', ({path, params: {scope: apiScope = 'global', method: apiMethod}, query: {color: queryColor}}) => {
+// 	return displayName + ' is ' + name;
+// });
+
+
+function getVarsFromDeclaration (astParams) {
+	const params = astParams.map (parseASTParamNames).filter (p => p).reduce((acc, param) => {
+		acc.push (...param);
+		return acc;
+	}, []);
 
 	return params;
 }
@@ -112,8 +182,9 @@ function findPrecedingCommentNode (currNode, docNodes, prevDocNodeIdx) {
 }
 
 function augmentParamDescription (paramDesc, jsdocParamDesc) {
+	const rename = {optional: 'isOptional'};
 	'description type optional default'.split (' ').forEach (
-		k => jsdocParamDesc[k] !== undefined && (paramDesc[k] = paramDesc[k] || jsdocParamDesc[k])
+		k => jsdocParamDesc[k] !== undefined && (paramDesc[rename[k] || k] = paramDesc[k] || jsdocParamDesc[k])
 	);
 }
 
@@ -125,56 +196,24 @@ function augmentParamDescription (paramDesc, jsdocParamDesc) {
  * @param {*} jsdoc 
  */
 function combineNamedParams (params, jsdoc) {
-	// console.log ('PARAMS', params, jsdoc.paramByNameTop, jsdoc.paramTags);
+	console.log ('PARAMS', params, jsdoc.paramsByPath);
 
 	const namedParams = {};
 
 	// TODO: add guard for parameter count and top jsdoc @param tag count match
 
+
+
 	params.forEach ((param, idx) => {
 		let paramJsdoc = {};
 		
 		// no destructuring, regular variable, param.variable means param.name
-		if (param.variable && jsdoc.paramByName[param.variable]) {
-			paramJsdoc = jsdoc.paramByName[param.variable];
+		if (param.name && jsdoc.paramsByPath[param.path]) {
+			paramJsdoc = jsdoc.paramsByPath[param.path];
 			augmentParamDescription (param, paramJsdoc);
-			namedParams[param.variable] = param;
+			// namedParams[param.name] = param;
 			return;
-		} else if (!param.variable && jsdoc.paramTagTree[idx]) {
-			paramJsdoc = jsdoc.paramTagTree[idx];
-
-			console.log ('PARARAM', param.object, paramJsdoc);
-
-			if ('object' in param && paramJsdoc.type === 'Object') {
-				
-				// TODO: add guard to ensure this is the same structure
-
-				// console.log ('PARARAM', param.object, paramJsdoc);
-
-				Object.keys (param.object).forEach ((k) => {
-					if (paramJsdoc.subTags[k]) {
-						const deepParam = param.object[k];
-						augmentParamDescription (deepParam, paramJsdoc.subTags[k]);
-						namedParams[param.object[k].variable] = {
-							...paramJsdoc.subTags[k],
-							...{name: k}
-						};
-					}
-				});
-			} 
-			if (param.object && params.length === 1) {
-				console.log ('PRAMPRAM', param);
-			}
 		}
-
-		/*
-		params[idx] = { ...{
-			description: paramJsdoc.description,
-			type: paramJsdoc.type,
-			optional: paramJsdoc.optional,
-			default: paramJsdoc.default
-		}, ...param};
-		*/
 	});
 
 	return namedParams;
@@ -185,13 +224,14 @@ function parseJsdocFromComment (text) {
 
 	const paramByName = {};
 	const paramByNameTop = {};
+	const paramsByPath = {};
 	const paramTagTree = [];
 
 	const paramTags = jsdoc.tags.filter (
 		tag => tag.tag === 'param'
 	);
 
-	let topParamIndex = 0;
+	let topParamIndex = -1;
 
 	paramTags.forEach ((tag, idx) => {
 		// paramByName[tag.name.replace (/.*\./, '')] = tag;
@@ -200,9 +240,14 @@ function parseJsdocFromComment (text) {
 		if (prefix) {
 			paramByName[prefix].subTags = (paramByName[prefix].subTags || {});
 			paramByName[prefix].subTags[name] = tag;
+			// for destructured object JSDoc have named positional parameter,
+			// but function declaration have no name, only position.
+			// we need to replace first path chunk before dot to parameter index
+			paramsByPath[`${topParamIndex}.${tag.name.replace(/^[^\.]+\./, '')}`] = tag;
 		} else {
-			tag.argIndex = topParamIndex;
 			topParamIndex ++;
+			tag.argIndex = topParamIndex;
+			paramsByPath['' + topParamIndex] = tag;
 			paramByNameTop[tag.name] = tag;
 			paramTagTree.push (tag);
 		}
@@ -218,6 +263,7 @@ function parseJsdocFromComment (text) {
 		paramTags,
 		paramByName,
 		paramByNameTop,
+		paramsByPath,
 		paramTagTree,
 		tags: jsdoc.tags,
 		description: jsdoc.description
@@ -225,6 +271,12 @@ function parseJsdocFromComment (text) {
 
 }
 
+/**
+ * Parse source and return all found function contracts
+ * @param {string} source source code
+ * @param {Object} [options] parsing options
+ * @returns {Array<FunContract>}
+ */
 export function parseSource (source, options) {
 	const fnDocs = [];
 
@@ -250,9 +302,55 @@ export function parseSource (source, options) {
 
 	// limit by top level functions only
 	const fns = ast.body.map ((entity, entityIdx) => {
-		if (entity.type !== 'FunctionDeclaration') {
+
+		let kind = 'function';
+		let method;
+		let path;
+
+		if (entity.type === 'ExpressionStatement' && entity.expression.type === 'CallExpression') {
+			const expr = entity.expression;
+			console.log ('CALLEE', expr.callee);
+			if (expr.callee.type !== 'MemberExpression') {
+				return;
+			}
+			method = expr.callee.property.name;
+			// TODO: other methods? https://expressjs.com/en/5x/api.html#routing-methods
+			if (method in 'all get post put delete'.split(' ')) {
+				kind = 'express-handler';
+			}
+			
+
+			console.log ('ARGS', expr.arguments);
+			if (!(expr.arguments.length === 2 && expr.arguments[0].type === 'Literal')) {
+				return;
+			}
+
+			path = expr.arguments[0].value;
+
+			entity = expr.arguments[1];
+
+		}
+
+		if (!['FunctionDeclaration', 'ArrowFunctionExpression'].includes(entity.type)) {
+			console.log (entity.type);
 			return;
 		}
+
+		let name;
+		if (entity.type === 'FunctionDeclaration') {
+			name = entity.id.name;
+		}
+
+		const vars = getVarsFromDeclaration (entity.params);
+
+		/** @type {FunContract} */
+		const funContract = {
+			name,
+			// type: entity.type,
+			kind: 'function', // or 'express-handler' or 'cli-handler'
+			description: undefined,
+			vars
+		};
 
 		docNodeIdx = findPrecedingCommentNode (
 			ast.body[entityIdx],
@@ -260,36 +358,28 @@ export function parseSource (source, options) {
 			docNodeIdx
 		);
 
-		const params = parseFunctionParams (entity.params);
-
-		const fnContract = {
-			name: entity.id.name,
-			// type: entity.type,
-			params
-		};
-
 		if (docNodeIdx === undefined) {
 			console.log ('no jsdoc', fnDocs);
-			return fnContract;
+			return funContract;
 		}
 		
 		// found commend which starts earlier than preceding entity end
 		if (entityIdx > 0 && ast.body[entityIdx].end > fnDocs[docNodeIdx].start) {
-			console.log ('jsdoc found for preceding function');
-			return fnContract;
+			console.log ('found preceding jsdoc, but it is for another function');
+			return funContract;
 		}
 		
 		const fnDoc = fnDocs[docNodeIdx];
 
-		fnContract.description = fnDoc.jsdoc.description;
+		funContract.description = fnDoc.jsdoc.description;
 
 		// use input
 
-		const namedParams = combineNamedParams (params, fnDoc.jsdoc);
+		const namedParams = combineNamedParams (vars, fnDoc.jsdoc);
 
-		fnContract.named = namedParams;
+		funContract.named = namedParams;
 
-		return fnContract;
+		return funContract;
 
 		commentNode.context = {
 			name: ctxNode.id.name,
