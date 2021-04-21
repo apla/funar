@@ -2,6 +2,10 @@ import commentParser from 'comment-parser';
 
 import {parse} from 'acorn';
 
+import {getVarsFromDeclaration} from './ast.js';
+
+import {TypeDef} from './typedef.js';
+
 // https://www.npmjs.com/package/jsdoctypeparser
 // https://github.com/dsheiko/bycontract
 // https://github.com/joelday/vscode-docthis/blob/master/src/documenter.ts
@@ -44,84 +48,6 @@ function parseASTObjectPattern (node) {
 
 }
 
-/**
- * Get AST node regardless of default value
- */
-function getASTType (astNode) {
-	let type = astNode.type;
-	let node = astNode;
-	let defaultVal = undefined;
-	if (astNode.type === 'AssignmentPattern') {
-		type = astNode.left.type;
-		node = astNode.left;
-		defaultVal = astNode.right.value;
-	}
-
-	return {
-		type,
-		node,
-		default: defaultVal
-	}
-}
-
-function parseASTParamTree (astParam) {
-	let {type, default: defaultVal, node: param} = getASTType (astParam);
-
-	// regular param f(a)
-	if (type === 'Identifier') {
-		return {variable: param.name, ...(defaultVal ? {default: defaultVal} : {})};
-	} else if (type === 'RestElement') {
-		return {...parseASTParamTree (param.argument), ...{rest: true, forcedType: 'Array'}};
-	// param with default value f(a=1)
-	} else if (type === 'ObjectPattern') {
-		const paramData = {object: {}, default: defaultVal}
-		param.properties.forEach (prop => {
-			paramData.object[prop.key.name] = parseASTParamTree(prop.value);
-			// console.log (prop);
-			// key is always
-		});
-		return paramData;
-	} else {
-		console.log (`unexpected parameter of type ${type}`);
-	}
-}
-
-/**
- * 
- * @param {*} astParam 
- * @param {string|number} path position or destructuring locator
- * @returns {FunParameter[]}
- */
-function parseASTParamNames (astParam, path) {
-	let {type, default: defaultVal, node: param} = getASTType (astParam);
-
-	// regular param f(a)
-	if (type === 'Identifier') {
-		return [{name: param.name, path: path.toString(), ...(defaultVal ? {default: defaultVal} : {})}];
-	} else if (type === 'RestElement') {
-		return [{path: path.toString(), ...parseASTParamNames (param.argument), ...{rest: true, forcedType: 'Array'}}];
-	// param with default value f(a=1)
-	} else if (type === 'ObjectPattern') {
-		const result = [];
-		param.properties.forEach (prop => {
-			const propPath = `${path}.${prop.key.name}`;
-			const {type: propValType, default: propValDefaultVal, node: propValNode} = getASTType (prop.value);
-			if (propValType === 'Identifier') {
-				result.push ({
-					name: propValNode.name,
-					path: propPath,
-					...(propValDefaultVal ? {default: propValDefaultVal} : {})
-				});
-			} else if (propValType === 'ObjectPattern') {
-				result.push (...parseASTParamNames(propValNode, propPath));
-			}
-			// key is always
-		});
-		return result;
-	} else {
-		console.log (`unexpected parameter of type ${type}`);
-	}
-}
 
 
 /**
@@ -131,15 +57,6 @@ function parseASTParamNames (astParam, path) {
 // 	return displayName + ' is ' + name;
 // });
 
-
-function getVarsFromDeclaration (astParams) {
-	const params = astParams.map (parseASTParamNames).filter (p => p).reduce((acc, param) => {
-		acc.push (...param);
-		return acc;
-	}, []);
-
-	return params;
-}
 
 function findNodeIndexForComment (ast, nodeIndex, commentNode) {
 	while (
@@ -172,7 +89,7 @@ function findPrecedingCommentNode (currNode, docNodes, prevDocNodeIdx) {
 
 	while (
 		(docNodes.length > docNodeIdx + 1)
-		&& (docNodes[docNodeIdx + 1].end < currNode.start)
+		&& (docNodes[docNodeIdx + 1].end < currNode.end)
 	) {
 		docNodeIdx ++;
 	}
@@ -181,10 +98,13 @@ function findPrecedingCommentNode (currNode, docNodes, prevDocNodeIdx) {
 
 }
 
+const tagRename = {optional: 'isOptional'};
+const usefulTags = 'description type optional isOptional default'.split (' ');
+
 function augmentParamDescription (paramDesc, jsdocParamDesc) {
-	const rename = {optional: 'isOptional'};
-	'description type optional default'.split (' ').forEach (
-		k => jsdocParamDesc[k] !== undefined && (paramDesc[rename[k] || k] = paramDesc[k] || jsdocParamDesc[k])
+	
+	usefulTags.forEach (
+		k => jsdocParamDesc[k] !== undefined && (paramDesc[tagRename[k] || k] = paramDesc[k] || jsdocParamDesc[k])
 	);
 }
 
@@ -202,14 +122,29 @@ function combineNamedParams (params, jsdoc) {
 
 	// TODO: add guard for parameter count and top jsdoc @param tag count match
 
-
+	const jsdocParamsByPath = {...jsdoc.paramsByPath};
+	
+	Object.keys (jsdoc.paramsByPath).forEach (path => {
+		const param = jsdoc.paramsByPath[path];
+		const customType = TypeDef.lookup({name: param.type});
+		if (customType && customType.type === 'Object') {
+			console.log ('CUSTOM TYPE', customType);
+			Object.keys (customType.props).forEach ((propName) => {
+				const destructuredPath = `${path}.${propName}`;
+				const paramFromProps = {name: propName, path: destructuredPath};
+				augmentParamDescription (paramFromProps, customType.props[propName]);
+				console.log (destructuredPath, customType.props[propName], paramFromProps);
+				jsdocParamsByPath[destructuredPath] = paramFromProps;
+			});
+		}
+	})
 
 	params.forEach ((param, idx) => {
 		let paramJsdoc = {};
 		
 		// no destructuring, regular variable, param.variable means param.name
-		if (param.name && jsdoc.paramsByPath[param.path]) {
-			paramJsdoc = jsdoc.paramsByPath[param.path];
+		if (param.name && jsdocParamsByPath[param.path]) {
+			paramJsdoc = jsdocParamsByPath[param.path];
 			augmentParamDescription (param, paramJsdoc);
 			// namedParams[param.name] = param;
 			return;
@@ -222,54 +157,147 @@ function combineNamedParams (params, jsdoc) {
 function parseJsdocFromComment (text) {
 	const jsdoc = (commentParser ('/*' + text + '*/') || [])[0];
 
-	const paramByName = {};
-	const paramByNameTop = {};
+	// const paramByName = {};
+	// const paramByNameTop = {};
 	const paramsByPath = {};
-	const paramTagTree = [];
+	// const paramTagTree = [];
 
-	const paramTags = jsdoc.tags.filter (
-		tag => tag.tag === 'param'
-	);
+	const paramTags = [];
+	let descriptionFromTag;
+	let typedefTag;
+	let typeTag;
+	let rangeTag;
+	const propTags  = [];
+
+	let kind;
+	let typedef;
+	let baseType;
+	const props = {};
+
+	jsdoc.tags.forEach ((tag) => {
+		if (tag.tag === 'param') {
+			paramTags.push (tag);
+		} else if (tag.tag === 'description') {
+			descriptionFromTag = tag.source.substr (tag.tag.length + 1).trim();
+		} else if (tag.tag === 'typedef') {
+			typedefTag = tag;
+		} else if (tag.tag === 'type') {
+			typeTag = tag;
+		} else if (tag.tag === 'range') {
+			rangeTag = tag;
+		} else if (tag.tag === 'prop' || tag.tag === 'property') {
+			propTags.push (tag);
+		}
+	});
 
 	let topParamIndex = -1;
 
-	paramTags.forEach ((tag, idx) => {
-		// paramByName[tag.name.replace (/.*\./, '')] = tag;
-		paramByName[tag.name] = tag;
-		const [, prefix, name] = tag.name.match (/(?:(.*)\.)?(.*)/);
-		if (prefix) {
-			paramByName[prefix].subTags = (paramByName[prefix].subTags || {});
-			paramByName[prefix].subTags[name] = tag;
-			// for destructured object JSDoc have named positional parameter,
-			// but function declaration have no name, only position.
-			// we need to replace first path chunk before dot to parameter index
-			paramsByPath[`${topParamIndex}.${tag.name.replace(/^[^\.]+\./, '')}`] = tag;
-		} else {
-			topParamIndex ++;
-			tag.argIndex = topParamIndex;
-			paramsByPath['' + topParamIndex] = tag;
-			paramByNameTop[tag.name] = tag;
-			paramTagTree.push (tag);
+	const description = jsdoc.description || descriptionFromTag;
+
+	if (paramTags.length) {
+		kind = 'params';
+		paramTags.forEach ((tag, idx) => {
+			// paramByName[tag.name.replace (/.*\./, '')] = tag;
+			// paramByName[tag.name] = tag;
+			const [, prefix, name] = tag.name.match (/(?:(.*)\.)?(.*)/);
+			if (prefix) {
+				// paramByName[prefix].subTags = (paramByName[prefix].subTags || {});
+				// paramByName[prefix].subTags[name] = tag;
+
+				// for destructured object JSDoc have named positional parameter,
+				// but function declaration have no name, only position.
+				// we need to replace first path chunk before dot to parameter index
+				paramsByPath[`${topParamIndex}.${tag.name.replace(/^[^\.]+\./, '')}`] = tag;
+			} else {
+				topParamIndex ++;
+				tag.argIndex = topParamIndex;
+				paramsByPath['' + topParamIndex] = tag;
+				// paramByNameTop[tag.name] = tag;
+				// paramTagTree.push (tag);
+			}
 		}
+		//).filter (
+			// remove object params internal fields
+		//	tag => !tag.name.match (/\./)
+		);
+	} else if (typedefTag) {
+		kind = 'typedef';
+
+		propTags.forEach ((tag, idx) => {
+			props[tag.name] = tag;
+		});
+
+		typedef = new TypeDef ({
+			name: typedefTag.name,
+			baseType: typeTag.type || 'Object',
+			props,
+			range: rangeTag ? rangeTag.name : undefined,
+			description,
+		});
 	}
-	//).filter (
-		// remove object params internal fields
-	//	tag => !tag.name.match (/\./)
-	);
 
 	
 
 	return {
-		paramTags,
-		paramByName,
-		paramByNameTop,
+		kind,
+		baseType,
+		description,
+
+		// paramTags,
+		// paramByName,
+		// paramByNameTop,
+		// paramTagTree,
 		paramsByPath,
-		paramTagTree,
+		
+		typedef,
+
 		tags: jsdoc.tags,
-		description: jsdoc.description
 	};
 
 }
+
+function findTypedefs (docNodes) {
+	if (!docNodes || docNodes.length === 0) {
+		return;
+	}
+
+	return docNodes.filter (
+		docNode => docNode.jsdoc.kind === 'typedef'
+	).map (
+		docNode => docNode.jsdoc.typedef
+	).reduce ((typedefs, typedef) => {
+		typedefs[typedef.name] = typedef;
+		return typedefs;
+	}, {});
+
+}
+
+function convertTypedefToSchema (typedef) {
+	console.log (typedef);
+	const required   = [];
+	const properties = [];
+	Object.keys(typedef.props).forEach ((propName) => {
+		const prop = typedef.props[propName];
+		if (!prop.optional) {
+			required.push (prop.name);
+		}
+		// https://swagger.io/specification/#data-types
+		properties.push ({
+			type: prop.type, // TODO: convert to supported type
+			// TODO: format?
+			default: prop.default,
+			description: prop.description
+		});
+	});
+	return {
+		name:        typedef.typedef,
+		description: typedef.description,
+		type:        typedef.baseType,
+		properties,
+		required,
+	  };
+}
+
 
 /**
  * Parse source and return all found function contracts
@@ -297,6 +325,17 @@ export function parseSource (source, options) {
 		}
 	});
 
+	
+
+	const typedefs = findTypedefs (fnDocs);
+	// console.log (typedefs);
+	if (typedefs && Object.keys(typedefs).length) {
+		console.log ('TYPEDEFS', typedefs);
+		if (typedefs.QueryWithColor) {
+			console.log (convertTypedefToSchema(typedefs.QueryWithColor));
+		}
+	}
+
 	let nodeIndex = 0;
 	let docNodeIdx;
 
@@ -309,24 +348,25 @@ export function parseSource (source, options) {
 
 		if (entity.type === 'ExpressionStatement' && entity.expression.type === 'CallExpression') {
 			const expr = entity.expression;
-			console.log ('CALLEE', expr.callee);
+			// console.log ('CALLEE', expr.callee);
 			if (expr.callee.type !== 'MemberExpression') {
 				return;
 			}
 			method = expr.callee.property.name;
 			// TODO: other methods? https://expressjs.com/en/5x/api.html#routing-methods
-			if (method in 'all get post put delete'.split(' ')) {
+			if ('all get post put delete'.split(' ').includes (method)) {
 				kind = 'express-handler';
 			}
 			
 
-			console.log ('ARGS', expr.arguments);
-			if (!(expr.arguments.length === 2 && expr.arguments[0].type === 'Literal')) {
+			// console.log ('ARGS', expr.arguments);
+			if (!(expr.arguments.length > 1 && expr.arguments[0].type === 'Literal')) {
 				return;
 			}
 
 			path = expr.arguments[0].value;
 
+			// TODO: multiple arguments
 			entity = expr.arguments[1];
 
 		}
@@ -347,7 +387,7 @@ export function parseSource (source, options) {
 		const funContract = {
 			name,
 			// type: entity.type,
-			kind: 'function', // or 'express-handler' or 'cli-handler'
+			kind, // 'function' or 'express-handler' or 'cli-handler'
 			description: undefined,
 			vars
 		};

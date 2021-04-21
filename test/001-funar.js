@@ -4,9 +4,9 @@ import assert from 'assert';
 
 import {parseSource} from '../funar.js';
 
-describe ("contracts", () => {
+describe ("contracts from function", () => {
 
-	it ("function without description", () => {
+	it ("without description", () => {
 		const fn = `function a1 (a, b) {}`;
 		const contracts = parseSource (fn);
 		assert.strictEqual (contracts.length, 1);
@@ -16,7 +16,7 @@ describe ("contracts", () => {
 		assert.strictEqual (contract.name, 'a1');
 	});
 
-	it ("function with description", () => {
+	it ("with description", () => {
 		const fn = `/**\n * A2 function\n */\nfunction a2 (a, b) {}`;
 		const contracts = parseSource (fn);
 		assert.strictEqual (contracts.length, 1);
@@ -30,7 +30,7 @@ describe ("contracts", () => {
 		assert (contract.description);
 	});
 
-	it ("function with description and param descriptions", () => {
+	it ("with param descriptions", () => {
 		const fn = `
 /**
  * A2 function
@@ -50,23 +50,23 @@ function a2 (a, b, ...rest) {}`;
 
 		assert (contract.description);
 
-		assert.strictEqual (contract.params.length, 3);
+		assert.strictEqual (contract.vars.length, 3);
 
-		const aParam = contract.params.filter (p => p.variable === 'a')[0];
+		const aParam = contract.vars.filter (p => p.name === 'a')[0];
 		
 		assert.strictEqual (aParam.type, 'string');
 		assert.strictEqual (aParam.description, 'the a string');
 
-		const bParam = contract.params.filter (p => p.variable === 'b')[0];
+		const bParam = contract.vars.filter (p => p.name === 'b')[0];
 
 		assert.strictEqual (bParam.type, 'number');
 		assert.strictEqual (bParam.description, 'the b number');
 
-		console.log (contract);
+		// console.log (contract);
 	});
 
 
-	it ("should find the function with description and params object", () => {
+	it ("with description and params object", () => {
 		const fn = `/**\n * A3 function\n */\nfunction a3 ({a, b}) {}`;
 		const contracts = parseSource (fn);
 		assert.strictEqual (contracts.length, 1);
@@ -82,7 +82,7 @@ function a2 (a, b, ...rest) {}`;
 		console.log (contract);
 	});
 
-	it ("should find the function with description and params object w/default", () => {
+	it ("with params object w/default", () => {
 		const fn = `/**\n * A4 function\n */\nfunction a4 ({a, b} = {}) {}`;
 		const contracts = parseSource (fn);
 		assert.strictEqual (contracts.length, 1);
@@ -103,7 +103,7 @@ function a2 (a, b, ...rest) {}`;
 		]);
 	});
 
-	it ("should find the function with description and params object 2", () => {
+	it ("with params object and rename", () => {
 		const fn = `/**\n * A5 function\n */\nfunction a5 ({aKey: aVar, bKey: bVar}) {}`;
 		const contracts = parseSource (fn);
 		assert.strictEqual (contracts.length, 1);
@@ -125,7 +125,7 @@ function a2 (a, b, ...rest) {}`;
 	});
 
 
-	it ("function with description and deep params object", () => {
+	it ("with deep params object", () => {
 		const fn = `/**
 * A6 function
 * @param {Object} params parameters
@@ -161,7 +161,7 @@ return displayName + ' is ' + name;
 		]);
 	});
 
-	it ("http handler", () => {
+	it ("in http handler", () => {
 		const fn = `/**
 * A7 function
 * @param {Object} req request object
@@ -193,7 +193,86 @@ return displayName + ' is ' + name;
 		]);
 	});
 
-	it ("should find the function with description and param object descriptions", () => {
+	it ("in http handler, jsdoc between params", () => {
+		const fn = `app.get('/',
+/**
+* A7A function
+* @param {Object} req request object
+* @param {Object} req.query 
+* @param {Object} req.query parsed query string
+* @param {string} req.query.color color from query string
+* @param {Object} res response object
+* @param {Function} next call next middleware
+*/
+({query: {color}}, res, next) => {
+return displayName + ' is ' + name;
+});`;
+		const contracts = parseSource (fn);
+		assert.strictEqual (contracts.length, 1);
+
+		// each contract means one function
+		const contract = contracts[0];
+
+		assert ('description' in contract);
+
+		assert (contract.description);
+
+		assert.strictEqual (contract.vars.length, 3);
+
+		assert.deepStrictEqual (contract.vars, [
+			{ name: 'color', path: '0.query.color', description: 'color from query string', type: 'string', isOptional: false },
+			{ name: 'res',   path: '1', description: 'response object', type: 'Object', isOptional: false },
+			{ name: 'next',  path: '2', description: 'call next middleware', type: 'Function', isOptional: false}
+		]);
+	});
+
+	it ("http handler, jsdoc uses typedef", () => {
+		const fn = `/**
+ * @typedef ColorHex
+ * @type {string}
+ * @description RGB Color in hex
+ * @range 6
+ */
+
+/**
+ * @typedef QueryWithColor
+ * @type {Object}
+ * @description parsed query string
+ * @prop {ColorHex} color color from query string
+ */
+
+app.get('/',
+/**
+ * A7B function
+ * @param {Object} req request object
+ * @param {QueryWithColor} req.query parsed query string
+ * @param {Object} res response object
+ * @param {Function} next call next middleware
+ */
+({query: {color}}, res, next) => {
+return displayName + ' is ' + name;
+});`;
+		const contracts = parseSource (fn);
+		assert.strictEqual (contracts.length, 1);
+
+		// each contract means one function
+		const contract = contracts[0];
+
+		assert ('description' in contract);
+
+		assert (contract.description);
+
+		assert.strictEqual (contract.vars.length, 3);
+
+		assert.deepStrictEqual (contract.vars, [
+			{ name: 'color', path: '0.query.color', description: 'color from query string', type: 'string', isOptional: false },
+			{ name: 'res',   path: '1', description: 'response object', type: 'Object', isOptional: false },
+			{ name: 'next',  path: '2', description: 'call next middleware', type: 'Function', isOptional: false}
+		]);
+	});
+
+
+	it ("with param object descriptions", () => {
 		const fn = `
 /**
  * A8 function
@@ -220,62 +299,19 @@ function a8 ({a: varA, b}, {c, d}, cb) {}`;
 
 		assert (contract.description);
 
-		assert.strictEqual (contract.params.length, 1);
-
-		console.log (contract);
+		assert.strictEqual (contract.vars.length, 5);
 
 		assert (contract.named); // gives
 
-		const aParam = contract.params.filter (p => p.name === 'a')[0];
+		const aParam = contract.vars.filter (p => p.name === 'varA')[0];
 		
 		assert.strictEqual (aParam.type, 'string');
 		assert.strictEqual (aParam.description, 'the a string');
 
-		const bParam = contract.params.filter (p => p.name === 'b')[0];
+		const bParam = contract.vars.filter (p => p.name === 'b')[0];
 
 		assert.strictEqual (bParam.type, 'number');
 		assert.strictEqual (bParam.description, 'the b number');
-
-		console.log (contract);
-	});
-
-	describe ("regular params", () => {
-		const fnBody = `function a (a, b) {}`
-		const schema = parseSource ();
-		console.log ('schema', schema);
-	});
-
-	describe ("for cli", () => {
-
-		const contents = fs.readFileSync ('./test/fixtures/cli.js');
-		const schema = parseSource (contents.toString());
-		console.log ('schema', schema);
-
-		it ("should parse list function schema", () => {
-			const listSchemas = schema.filter (fn => fn.context.name === 'list');
-			assert.strictEqual (listSchemas.length, 1);
-			const listSchema = listSchemas[0];
-			assert (listSchema.jsdoc.description);
-			assert (listSchema.jsdoc.description);
-
-		});
-
-	});
-
-	describe ("for webapp", () => {
-
-		const contents = fs.readFileSync ('./test/fixtures/webapp.js');
-		const schema = parseSource (contents.toString());
-		console.log ('schema', schema);
-
-		it ("should parse list function schema", () => {
-			const listSchemas = schema.filter (fn => fn.context.name === 'list');
-			assert.strictEqual (listSchemas.length, 1);
-			const listSchema = listSchemas[0];
-			assert (listSchema.jsdoc.description);
-			assert (listSchema.jsdoc.description);
-
-		});
 
 	});
 

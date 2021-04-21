@@ -20,15 +20,21 @@ function search ({body: {search, start=0, limit=10}}, res) {
 }
 
 /**
+ * @typedef PageSize
+ * @type {number}
+ * @range 10-100
+ */
+
+ app.all('/search', 
+/**
  * Search handler
  * @param {Object}              req              request
- * @param {"POST"|"GET"}        req.method       request method
  * @param {Object}              req.body         request body
- * @param {Object}              req.body.search  `search` parameter
- * @param {Object}              req.body.start   `offset` parameter
- * @param {Object}              req.body.limit   `limit` parameter
+ * @param {string}              req.body.search  `search` parameter
+ * @param {number}              [req.body.start] `offset` parameter
+ * @param {PageSize}            [req.body.limit] `limit` parameter
  * @param {Object}              res              response
  */
-function search ({body: {search, start, limit}}, res) {
+({body: {search, start, limit}}, res) => {
 	res.sendStatus(200);
-}
+});
