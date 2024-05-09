@@ -96,6 +96,9 @@ function augmentParamDescription (paramDesc, jsdocParamDesc) {
 function combineArgMeta (argMeta, jsDocParam) {
 	return usefulTags.reduce((combinedArgMeta, tag) => {
 		if (jsDocParam[tag] !== undefined) {
+			if (tag === "default" && argMeta[tag] !== jsDocParam[tag]) {
+				console.error("Default value mismatch between function declaration and jsdoc", argMeta, jsDocParam);
+			}
 			combinedArgMeta[tagRename[tag] || tag] = combinedArgMeta[tag] || jsDocParam[tag];
 		}
 		return combinedArgMeta;
