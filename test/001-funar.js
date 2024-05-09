@@ -2,7 +2,7 @@ import assert from "node:assert";
 
 import { it, describe } from "node:test";
 
-import { parseSource } from "../funar.js";
+import { parseSource } from "../src/funar.js";
 
 describe ("contracts from function", () => {
 

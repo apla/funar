@@ -4,7 +4,7 @@ import assert from "node:assert";
 
 import { it, describe, before } from "node:test";
 
-import { parseSource } from "../funar.js";
+import { parseSource } from "../src/funar.js";
 
 /** @type {Buffer} */
 let contents;
@@ -29,7 +29,7 @@ describe ("for cli", () => {
 	});
 
 	it ("should have all parameters fulfilled for long arg names", () => {
-		console.log(schema[1]);
+		// console.log(schema[1]);
 	});
 
 });
