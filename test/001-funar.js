@@ -339,6 +339,33 @@ function a8 ({a: varA, b}, {c, d}, cb) {}`;
 		assert.deepStrictEqual(contract.vars.next, { name: "next",  path: "2", description: "call next middleware", type: "Function", isOptional: false,});
 
 	});
+	
+	it("with arrays", () => {
+		const fn = `
+/**
+ * AA function
+ * @param {Object} options
+ * @param {string[]} options.paths paths to inspect
+*/
+function aa ({paths}) {}`;
+		const contracts = parseSource (fn, {ast: true, jsdoc: true});
+
+		assert.strictEqual (contracts.length, 1);
+
+		const contract = contracts[0];
+
+		assert.strictEqual (contract.name, "aa");
+
+		assert.strictEqual (Object.keys(contract.vars).length, 1);
+
+		const pathsParam = contract.vars.paths;
 		
+		assert.strictEqual (pathsParam.type, "string[]");
+		assert.strictEqual (pathsParam.description, "paths to inspect");
+		assert.strictEqual (pathsParam.structure, "array");
+		assert.strictEqual (pathsParam.contains, "string");
+
+	});
+
 });
 

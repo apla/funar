@@ -30,14 +30,19 @@ import {TypeDef} from './typedef.js';
 // https://github.com/artdecocode/typal
 
 /**
+ * @description Structure describes function parameter. If parameter type is an array, enum, or object,
+ * then `special` field is set and `primitiveType` set to the type of the array items,
+ * enum items, or object values.
  * @typedef FunParameter
  * @property {string}  name internal function variable name
  * @property {string}  [alias] defaults to other literal
  * @property {string}  path parameter position number or destructuring locator
  * @property {any}     [default] default value
  * @property {string}  [description] parameter description
- * @property {string}  [type = undefined] parameter type
- * @property {boolean} [isOptional] false
+ * @property {string}  [type] parameter type
+ * @property {boolean} [isOptional] is parameter optional
+ * @property {"array"|"enum"|"object"} [structure] parameter structure: array, enum, or object
+ * @property {string}  [contains] element type for structured parameter
  */
 
 
@@ -79,7 +84,7 @@ function findPrecedingCommentNode (currNode, jsDocNodes, prevDocNodeIdx) {
 }
 
 const tagRename  = {optional: 'isOptional'};
-const usefulTags = 'description type optional isOptional default'.split (' ');
+const usefulTags = 'description type optional isOptional default structure contains'.split (' ');
 
 function augmentParamDescription (paramDesc, jsdocParamDesc) {
 	
@@ -226,25 +231,43 @@ function parseJsdocFromComment (isBlock, commentText, start, end) {
 
 	if (paramTags.length) {
 		kind = "params";
+		let paramPath;
+		
 		paramTags.forEach ((tag, idx) => {
+			/** @type {FunParameter} */
+			let param = {name: tag.name, type: tag.type, description: tag.description, default: tag.default, isOptional: tag.optional};
 			// paramByName[tag.name.replace (/.*\./, '')] = tag;
 			// paramByName[tag.name] = tag;
-			const [, prefix, name] = tag.name.match (/(?:(.*)\.)?(.*)/);
-			if (prefix) {
+			const matchingDestructured = tag.name.match (/(?:(.*)\.)?(.*)/);
+			if (matchingDestructured && matchingDestructured[1]) {
+				const [, prefix, name] = matchingDestructured;
 				// paramByName[prefix].subTags = (paramByName[prefix].subTags || {});
 				// paramByName[prefix].subTags[name] = tag;
 
 				// for destructured object JSDoc have named positional parameter,
 				// but function declaration have no name, only position.
 				// we need to replace first path chunk before dot to parameter index
-				paramsByPath[`${topParamIndex}.${tag.name.replace(/^[^\.]+\./, '')}`] = tag;
+				paramPath = `${topParamIndex}.${tag.name.replace(/^[^\.]+\./, '')}`;
 			} else {
 				topParamIndex ++;
-				tag.argIndex = topParamIndex;
-				paramsByPath['' + topParamIndex] = tag;
-				// paramByNameTop[tag.name] = tag;
-				// paramTagTree.push (tag);
+				param.argIndex = topParamIndex;
+				paramPath = '' + topParamIndex;
 			}
+
+			const specialityMatch = tag.type.match(/(.*)\[\]$|^Array<(.*)>$|^Object<(.*)>$|^Record<(.*)>$/);
+			if (specialityMatch) {
+				const [, arr1, arr2, obj1, obj2] = specialityMatch;
+				param.structure = arr1 || arr2 ? "array" : obj1 || obj2 ? "object" : undefined;
+				param.contains  = arr1 ?? arr2 ?? obj1 ?? obj2;
+
+			}
+
+			if (param.default) {
+				// bit hacky, but works for most cases
+				param.default = JSON.parse(param.default);
+			}
+
+			paramsByPath[paramPath] = param;
 		}
 		//).filter (
 			// remove object params internal fields
