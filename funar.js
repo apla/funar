@@ -1,5 +1,5 @@
 // import commentParser from 'comment-parser';
-/** @typedef {import('comment-parser').Spec} Spec */
+/** @typedef {import('comment-parser').Spec} JSDocTag */
 import {parse as commentParser } from 'comment-parser';
 
 import * as acorn from 'acorn';
@@ -155,7 +155,7 @@ function documentVariables (vars, jsdoc) {
  * @prop {string} [description]
  * @prop {Object} paramsByPath
  * @prop {TypeDef} [typedef]
- * @prop {Spec[]} tags
+ * @prop {JSDocTag[]} tags
  * @prop {number} start
  * @prop {number} end
  */
@@ -182,17 +182,19 @@ function parseJsdocFromComment (isBlock, commentText, start, end) {
 
 	// const paramByName = {};
 	// const paramByNameTop = {};
+	/** @type {Object<string,FunParameter>} */
 	const paramsByPath = {};
 	// const paramTagTree = [];
 
+	/** @type {JSDocTag[]} */
 	const paramTags = [];
 	/** @type {string | undefined} */
 	let descriptionFromTag;
-	/** @type {Spec | undefined} */
+	/** @type {JSDocTag | undefined} */
 	let typedefTag;
-	/** @type {Spec | undefined} */
+	/** @type {JSDocTag | undefined} */
 	let typeTag;
-	/** @type {Spec | undefined} */
+	/** @type {JSDocTag | undefined} */
 	let rangeTag;
 	const propTags  = [];
 
