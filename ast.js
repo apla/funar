@@ -71,8 +71,8 @@ function parseASTParamNames (astParam, path) {
 		if (astParam.left.type === "Identifier") {
 			if (astParam.right.type === 'Literal') {
 				defaultVal = astParam.right.value;
-			// } else if (astParam.right.type === 'Identifier') {
-			// 	alias = astParam.right.name;
+			} else if (astParam.right.type === 'Identifier') {
+				alias = astParam.right.name;
 			} else if ( // param = _param ?? defaultValue | left = _left ?? _right
 				astParam.right.type === 'LogicalExpression'
 				&& astParam.right.operator === '??'
@@ -84,6 +84,7 @@ function parseASTParamNames (astParam, path) {
 			}
 			return [{
 				...parsedLeftPart[0],
+				alias,
 				default: defaultVal,
 				isOptional: true,
 			}]

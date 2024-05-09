@@ -152,7 +152,7 @@ return displayName + ' is ' + name;
 
 		assert.deepStrictEqual (contract.vars, {
 			path:      { name: "path",      path: "0.path" },
-			apiScope:  { name: "apiScope",  path: "0.app.scope", default: "global", isOptional: true },
+			apiScope:  { name: "apiScope",  path: "0.app.scope", default: "global", isOptional: true, alias: undefined },
 			apiMethod: { name: "apiMethod", path: "0.app.method" },
 			rgb:       { name: "rgb",       path: "0.query.color.rgb", description: "color rgb part", type: "Object", isOptional: false },
 			alpha:     { name: "alpha",     path: "0.query.color.alpha", description: "color alpha part", type: "Object", isOptional: true }
