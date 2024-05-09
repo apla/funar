@@ -1,88 +1,118 @@
+// https://github.com/acornjs/acorn/issues/1136
+/* * @typedef {import('node-estree').ESTree} ESTree */
+// import * as ESTree from 'estree';
+import * as acorn from "acorn";
+
+/** @typedef {import('./funar.js').FunParameter} FunParameter */
+
 /**
  * Get AST node regardless of default value
+ * @param {acorn.Pattern} astNode 
  */
  function getASTType (astNode) {
+	/** @type {string|undefined} */
+	let name = astNode.type === 'Identifier' ? astNode.name : undefined;
+	/** @type {string} */
 	let type = astNode.type;
+	/** @type {acorn.Pattern} */
 	let node = astNode;
 	let defaultVal = undefined;
-	if (astNode.type === 'AssignmentPattern') {
-		type = astNode.left.type;
-		node = astNode.left;
-		defaultVal = astNode.right.value;
-	}
+	let alias = undefined;
 
 	return {
+		name,
 		type,
 		node,
-		default: defaultVal
-	}
-}
-
-function parseASTParamTree (astParam) {
-	let {type, default: defaultVal, node: param} = getASTType (astParam);
-
-	// regular param f(a)
-	if (type === 'Identifier') {
-		return {variable: param.name, ...(defaultVal ? {default: defaultVal} : {})};
-	} else if (type === 'RestElement') {
-		return {...parseASTParamTree (param.argument), ...{rest: true, forcedType: 'Array'}};
-	// param with default value f(a=1)
-	} else if (type === 'ObjectPattern') {
-		const paramData = {object: {}, default: defaultVal}
-		param.properties.forEach (prop => {
-			paramData.object[prop.key.name] = parseASTParamTree(prop.value);
-			// console.log (prop);
-			// key is always
-		});
-		return paramData;
-	} else {
-		console.log (`unexpected parameter of type ${type}`);
+		...{alias, defaultVal},
 	}
 }
 
 /**
- * 
- * @param {*} astParam 
+ * Parse single parameter from function declaration
+ * @param {acorn.Pattern} astParam 
  * @param {string|number} path position or destructuring locator
  * @returns {FunParameter[]}
  */
 function parseASTParamNames (astParam, path) {
-	let {type, default: defaultVal, node: param} = getASTType (astParam);
+	let name, type, alias, defaultVal;
 
 	// regular param f(a)
-	if (type === 'Identifier') {
-		return [{name: param.name, path: path.toString(), ...(defaultVal ? {default: defaultVal} : {})}];
-	} else if (type === 'RestElement') {
-		return [{path: path.toString(), ...parseASTParamNames (param.argument, path), ...{rest: true, forcedType: 'Array'}}];
-	// param with default value f(a=1)
-	} else if (type === 'ObjectPattern') {
+	if (astParam.type === 'Identifier') {
+		return [{
+			name: astParam.name,
+			// ...{alias},
+			path: path.toString(),
+		}];
+	} else if (astParam.type === 'RestElement') {
+		return [{
+			...parseASTParamNames(astParam.argument, path)[0],
+			...{rest: true, forcedType: 'Array'}
+		}];
+	
+	} else if (astParam.type === 'ObjectPattern') {
+		/** @type {FunParameter[]} */
 		const result = [];
-		param.properties.forEach (prop => {
-			const propPath = `${path}.${prop.key.name}`;
-			const {type: propValType, default: propValDefaultVal, node: propValNode} = getASTType (prop.value);
-			if (propValType === 'Identifier') {
-				result.push ({
-					name: propValNode.name,
-					path: propPath,
-					...(propValDefaultVal ? {default: propValDefaultVal} : {})
-				});
-			} else if (propValType === 'ObjectPattern') {
-				result.push (...parseASTParamNames(propValNode, propPath));
-			}
-			// key is always
+		astParam.properties.forEach (prop => {
+			if (prop.type === 'RestElement') return;
+			// sometimes it is {key: "value"}, but sometimes it is {"key": "value"}
+			// @ts-ignore TODO: add more type guards
+			const propPath = `${path}.${prop.key.name ?? (prop.key.value.includes(".") ? prop.key.raw : prop.key.value)}`;
+			
+			const parsedPropValue = parseASTParamNames(prop.value, propPath);
+
+			result.push(...parsedPropValue);
 		});
 		return result;
+	// param with default value f(a=1)
+	} else if (astParam.type === 'AssignmentPattern') {
+
+		const parsedLeftPart = parseASTParamNames(astParam.left, path);
+
+		if (astParam.left.type === "Identifier") {
+			if (astParam.right.type === 'Literal') {
+				defaultVal = astParam.right.value;
+			// } else if (astParam.right.type === 'Identifier') {
+			// 	alias = astParam.right.name;
+			} else if ( // param = _param ?? defaultValue | left = _left ?? _right
+				astParam.right.type === 'LogicalExpression'
+				&& astParam.right.operator === '??'
+				&& astParam.right.left.type === 'Identifier'
+				&& astParam.right.right.type === 'Literal'
+			) {
+				defaultVal = astParam.right.right.value;
+				alias = astParam.right.left.name;
+			}
+			return [{
+				...parsedLeftPart[0],
+				default: defaultVal,
+				isOptional: true,
+			}]
+		}
+
+		return parsedLeftPart;
+		
 	} else {
-		console.log (`unexpected parameter of type ${type}`);
+		console.warn (`unexpected parameter of type ${type}`);
+		return [];
 	}
 }
 
 
+/**
+ * Parse all parameters from function declaration
+ * @param {acorn.Pattern[]} astParams
+ * @returns {Object<string,FunParameter>}
+ */
 export function getVarsFromDeclaration (astParams) {
-	const params = astParams.map (parseASTParamNames).filter (p => p).reduce((acc, param) => {
-		acc.push (...param);
+
+	/** @type {Object<string,FunParameter>} */
+	const params = astParams.map (parseASTParamNames).reduce((acc, paramList) => {
+		paramList.map((param) => {
+			acc[param.name] = {...param};
+		});
+		
 		return acc;
-	}, []);
+	}, {});
 
 	return params;
 }

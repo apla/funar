@@ -19,14 +19,15 @@ function list () {
  * @param {string}              [options.logFile]        log file path
  * @param {boolean}             [options.logDiff=false]  use diff format for log file
  */
-function connect ({p, path = p, b = 9600, baudrate = b, logFile, logDiff}) {
+export function connect ({p, path = p, b, baudrate = b ?? 9600, databits = 8, parity, logFile, logDiff = false}) {
 
-	const xxx = baudrate;
+
+	return {path, baudrate, databits, parity};
 
 }
 
 /**
- * @typedef SerialParity
+ * @ typedef SerialParity
  * @union {string}
  */
 const SerialParity = [
@@ -50,11 +51,12 @@ const SerialParity = [
  * @prop {boolean}             [logDiff=false]  use diff format for log file
  */
 
-app.command (
-	'connect',
-	/** @param {SerialOptions} options connect options */
-	({p, path = p, b = 9600, baudrate = b, parity, logFile, logDiff}) => {
+// app.command (
+// 	'connect',
+// 	/** @param {SerialOptions} options connect options */
+// 	({p, path = p, b = 9600, baudrate = b, parity, logFile, logDiff}) => {
 
-	const xxx = baudrate;
+// 	const xxx = baudrate;
 
-});
+// });
+

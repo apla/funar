@@ -25,7 +25,7 @@ function search ({body: {search, start=0, limit=10}}, res) {
  * @range 10-100
  */
 
- app.all('/search', 
+app.all('/search', 
 /**
  * Search handler
  * @param {Object}              req              request

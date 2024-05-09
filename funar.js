@@ -1,6 +1,9 @@
-import commentParser from 'comment-parser';
+// import commentParser from 'comment-parser';
+/** @typedef {import('comment-parser').Spec} Spec */
+import {parse as commentParser } from 'comment-parser';
 
-import {parse} from 'acorn';
+import * as acorn from 'acorn';
+const parse = acorn.parse;
 
 import {getVarsFromDeclaration} from './ast.js';
 
@@ -15,6 +18,7 @@ import {TypeDef} from './typedef.js';
 
 // typescript validation
 // https://github.com/pelotom/runtypes
+// 
 
 // parsing functions
 // https://github.com/tunnckoCore/opensource/blob/master/packages/parse-function/test/index.js
@@ -27,11 +31,13 @@ import {TypeDef} from './typedef.js';
 
 /**
  * @typedef FunParameter
- * @property {string} name internal function variable name
- * @property {string} path parameter position number or destructuring locator
- * @property {string} [description] parameter description
- * @property {string} type parameter type
- * @property {boolean} isOptional: false
+ * @property {string}  name internal function variable name
+ * @property {string}  [alias] defaults to other literal
+ * @property {string}  path parameter position number or destructuring locator
+ * @property {any}     [default] default value
+ * @property {string}  [description] parameter description
+ * @property {string}  [type = undefined] parameter type
+ * @property {boolean} [isOptional] false
  */
 
 
@@ -39,23 +45,8 @@ import {TypeDef} from './typedef.js';
  * @typedef FunContract
  * @property {string} name function name
  * @property {string} [description] function description from JSDoc
- * @property {Array<FunParameter>} params positional function parameters
- * @property {Object<string,FunParameter>} named named function parameters
+ * @property {Object<string,FunParameter>} vars function variables from arguments
  */
-
-
-function parseASTObjectPattern (node) {
-
-}
-
-
-
-/**
- * 
- */
-// app.get ('/', ({path, params: {scope: apiScope = 'global', method: apiMethod}, query: {color: queryColor}}) => {
-// 	return displayName + ' is ' + name;
-// });
 
 
 function findNodeIndexForComment (ast, nodeIndex, commentNode) {
@@ -63,33 +54,22 @@ function findNodeIndexForComment (ast, nodeIndex, commentNode) {
 		ast.body[nodeIndex].start < commentNode.end
 		&& nodeIndex < ast.body.length
 	) {
-		// console.log (ast.body[nodeIndex].start, commentNode.end);
-		// console.log ('skipped ', ast.body[nodeIndex]);
 		nodeIndex ++;
 	}
 
 	return nodeIndex;
 }
 
-function findPrecedingCommentNode (currNode, docNodes, prevDocNodeIdx) {
-	if (!docNodes || docNodes.length === 0) {
+function findPrecedingCommentNode (currNode, jsDocNodes, prevDocNodeIdx) {
+	if (!jsDocNodes || jsDocNodes.length === 0) {
 		return;
 	}
 
 	let docNodeIdx = prevDocNodeIdx === undefined ? -1 : prevDocNodeIdx;
 
-	// console.log (
-	// 	prevDocNodeIdx,
-	// 	'docNodes.length', docNodes.length,
-	// 	'jsdoc end', docNodes[0].end,
-	// 	'fn start', currNode.start,
-	// 	docNodes.length > docNodeIdx + 1,
-	// 	docNodes[docNodeIdx + 1].end < currNode.start
-	// );
-
 	while (
-		(docNodes.length > docNodeIdx + 1)
-		&& (docNodes[docNodeIdx + 1].end < currNode.end)
+		(jsDocNodes.length > docNodeIdx + 1)
+		&& (jsDocNodes[docNodeIdx + 1].end < currNode.end)
 	) {
 		docNodeIdx ++;
 	}
@@ -98,7 +78,7 @@ function findPrecedingCommentNode (currNode, docNodes, prevDocNodeIdx) {
 
 }
 
-const tagRename = {optional: 'isOptional'};
+const tagRename  = {optional: 'isOptional'};
 const usefulTags = 'description type optional isOptional default'.split (' ');
 
 function augmentParamDescription (paramDesc, jsdocParamDesc) {
@@ -108,54 +88,97 @@ function augmentParamDescription (paramDesc, jsdocParamDesc) {
 	);
 }
 
+function combineArgMeta (argMeta, jsDocParam) {
+	return usefulTags.reduce((combinedArgMeta, tag) => {
+		if (jsDocParam[tag] !== undefined) {
+			combinedArgMeta[tagRename[tag] || tag] = combinedArgMeta[tag] || jsDocParam[tag];
+		}
+		return combinedArgMeta;
+	}, {...argMeta});
+}
+
 /**
  * Function declaration can contain list of param names or structure with
  * param names. Each of those params will be turn into variable on function call.
  * This function returns flat list of named parameters.
- * @param {*} params 
+ * @param {Object<string,FunParameter>} vars 
  * @param {*} jsdoc 
  */
-function combineNamedParams (params, jsdoc) {
-	console.log ('PARAMS', params, jsdoc.paramsByPath);
-
+function documentVariables (vars, jsdoc) {
+	/** @type {Object<string,FunParameter>} */
 	const namedParams = {};
 
 	// TODO: add guard for parameter count and top jsdoc @param tag count match
 
 	const jsdocParamsByPath = {...jsdoc.paramsByPath};
 	
-	Object.keys (jsdoc.paramsByPath).forEach (path => {
+	Object.keys(jsdoc.paramsByPath).forEach(path => {
 		const param = jsdoc.paramsByPath[path];
 		const customType = TypeDef.lookup({name: param.type});
 		if (customType && customType.type === 'Object') {
-			console.log ('CUSTOM TYPE', customType);
 			Object.keys (customType.props).forEach ((propName) => {
 				const destructuredPath = `${path}.${propName}`;
 				const paramFromProps = {name: propName, path: destructuredPath};
-				augmentParamDescription (paramFromProps, customType.props[propName]);
-				console.log (destructuredPath, customType.props[propName], paramFromProps);
+				namedParams[propName] = combineArgMeta(paramFromProps, customType.props[propName]);
 				jsdocParamsByPath[destructuredPath] = paramFromProps;
 			});
 		}
-	})
+	});
 
-	params.forEach ((param, idx) => {
+	Object.keys(vars).forEach((varName, idx) => {
+		/** @type {FunParameter} */
+		const varMeta = vars[varName];
+
+		// if we already have processed param, we don't need to do it again
+		if (namedParams[varMeta.name]) return;
+		
 		let paramJsdoc = {};
 		
 		// no destructuring, regular variable, param.variable means param.name
-		if (param.name && jsdocParamsByPath[param.path]) {
-			paramJsdoc = jsdocParamsByPath[param.path];
-			augmentParamDescription (param, paramJsdoc);
-			// namedParams[param.name] = param;
+		if (varMeta.name && jsdocParamsByPath[varMeta.path]) {
+			paramJsdoc = jsdocParamsByPath[varMeta.path];
+			namedParams[varMeta.name] = combineArgMeta(varMeta, paramJsdoc);
 			return;
 		}
+
+		// param is not documented
+		namedParams[varMeta.name] = varMeta;
 	});
 
 	return namedParams;
 }
 
-function parseJsdocFromComment (text) {
-	const jsdoc = (commentParser ('/*' + text + '*/') || [])[0];
+/**
+ * @typedef FunJSDoc
+ * @type {Object}
+ * @prop {string} [kind]
+ * @prop {string} [description]
+ * @prop {Object} paramsByPath
+ * @prop {TypeDef} [typedef]
+ * @prop {Spec[]} tags
+ * @prop {number} start
+ * @prop {number} end
+ */
+
+/**
+ * Parse JSDoc structure from JSDoc text, compatible with acorn onComment event
+ * 
+ * @param {boolean} isBlock specifies that comment is a block one with asterisks
+ * @param {string} commentText comment text without comment start and end tokens
+ * @param {number} start starting position in the source
+ * @param {number} end ending position in the source
+ * @returns {FunJSDoc|undefined}
+ */
+function parseJsdocFromComment (isBlock, commentText, start, end) {
+
+	// jsdoc comments only appears within comment blocks
+	if (!isBlock)
+		return;
+	// just a regular block comment
+	if (commentText[0] !== '*')
+		return;
+
+	const jsdoc = (commentParser('/*' + commentText + '*/') || [])[0];
 
 	// const paramByName = {};
 	// const paramByNameTop = {};
@@ -163,29 +186,34 @@ function parseJsdocFromComment (text) {
 	// const paramTagTree = [];
 
 	const paramTags = [];
+	/** @type {string | undefined} */
 	let descriptionFromTag;
+	/** @type {Spec | undefined} */
 	let typedefTag;
+	/** @type {Spec | undefined} */
 	let typeTag;
+	/** @type {Spec | undefined} */
 	let rangeTag;
 	const propTags  = [];
 
 	let kind;
 	let typedef;
-	let baseType;
+	// let baseType;
 	const props = {};
 
 	jsdoc.tags.forEach ((tag) => {
-		if (tag.tag === 'param') {
+		const tagName = tag.tag;
+		if (tagName === 'param') {
 			paramTags.push (tag);
-		} else if (tag.tag === 'description') {
-			descriptionFromTag = tag.source.substr (tag.tag.length + 1).trim();
-		} else if (tag.tag === 'typedef') {
+		} else if (tagName === 'description') {
+			descriptionFromTag = tag.source.join(' ').slice (tagName.length + 1).trim();
+		} else if (tagName === 'typedef') {
 			typedefTag = tag;
-		} else if (tag.tag === 'type') {
+		} else if (tagName === 'type') {
 			typeTag = tag;
-		} else if (tag.tag === 'range') {
+		} else if (tagName === 'range') {
 			rangeTag = tag;
-		} else if (tag.tag === 'prop' || tag.tag === 'property') {
+		} else if (tagName === 'prop' || tagName === 'property') {
 			propTags.push (tag);
 		}
 	});
@@ -195,7 +223,7 @@ function parseJsdocFromComment (text) {
 	const description = jsdoc.description || descriptionFromTag;
 
 	if (paramTags.length) {
-		kind = 'params';
+		kind = "params";
 		paramTags.forEach ((tag, idx) => {
 			// paramByName[tag.name.replace (/.*\./, '')] = tag;
 			// paramByName[tag.name] = tag;
@@ -221,7 +249,11 @@ function parseJsdocFromComment (text) {
 		//	tag => !tag.name.match (/\./)
 		);
 	} else if (typedefTag) {
-		kind = 'typedef';
+		kind = "typedef";
+
+		// TODO: /** @typedef {import('acorn')} acorn */
+		// TODO: /** @typedef {import('./funar.js').FunParameter} FunParameter */
+		// TODO: /** @typedef {'after'|'before'|'between'|'day'} PointInTime */
 
 		propTags.forEach ((tag, idx) => {
 			props[tag.name] = tag;
@@ -229,18 +261,17 @@ function parseJsdocFromComment (text) {
 
 		typedef = new TypeDef ({
 			name: typedefTag.name,
-			baseType: typeTag.type || 'Object',
+			baseType: typeTag ? typeTag.type : undefined,
 			props,
 			range: rangeTag ? rangeTag.name : undefined,
+			// pattern: 
 			description,
 		});
 	}
 
-	
-
 	return {
 		kind,
-		baseType,
+		// baseType,
 		description,
 
 		// paramTags,
@@ -252,52 +283,56 @@ function parseJsdocFromComment (text) {
 		typedef,
 
 		tags: jsdoc.tags,
+
+		start,
+		end
 	};
 
 }
 
+/**
+ * 
+ * @param {FunJSDoc[]} docNodes 
+ * @returns {Object<string, TypeDef>|undefined}
+ */
 function findTypedefs (docNodes) {
 	if (!docNodes || docNodes.length === 0) {
 		return;
 	}
 
 	return docNodes.filter (
-		docNode => docNode.jsdoc.kind === 'typedef'
-	).map (
-		docNode => docNode.jsdoc.typedef
-	).reduce ((typedefs, typedef) => {
+		docNode => docNode.kind === 'typedef'
+	).filter(
+		docNode => docNode.typedef
+	).map(
+		docNode => docNode.typedef
+	).reduce((typedefs, typedef) => {
+		// @ts-ignore undefined .typedef is filtered out
 		typedefs[typedef.name] = typedef;
 		return typedefs;
 	}, {});
 
 }
 
-function convertTypedefToSchema (typedef) {
-	console.log (typedef);
-	const required   = [];
-	const properties = [];
-	Object.keys(typedef.props).forEach ((propName) => {
-		const prop = typedef.props[propName];
-		if (!prop.optional) {
-			required.push (prop.name);
-		}
-		// https://swagger.io/specification/#data-types
-		properties.push ({
-			type: prop.type, // TODO: convert to supported type
-			// TODO: format?
-			default: prop.default,
-			description: prop.description
-		});
-	});
-	return {
-		name:        typedef.typedef,
-		description: typedef.description,
-		type:        typedef.baseType,
-		properties,
-		required,
-	  };
+/**
+ * 
+ * @param {acorn.VariableDeclaration} entity 
+ */
+function processNamedVarDeclaration (entity) {
+	let name, declaration;
+	// ignoring additional declarations
+	const firstDeclaration = entity.declarations[0];
+	if (
+		firstDeclaration.type === "VariableDeclarator"
+		&& firstDeclaration.id.type === "Identifier"
+		&& firstDeclaration.init
+		&& firstDeclaration.init.type === "ArrowFunctionExpression"
+	) {
+		name = firstDeclaration.id.name;
+		declaration = firstDeclaration.init;
+	}
+	return {name, declaration};
 }
-
 
 /**
  * Parse source and return all found function contracts
@@ -306,90 +341,58 @@ function convertTypedefToSchema (typedef) {
  * @returns {Array<FunContract>}
  */
 export function parseSource (source, options) {
+	/** @type {FunJSDoc[]} */
 	const fnDocs = [];
 
 	const ast = parse (source, {
 		onComment (isBlock, text, start, end) {
-			// jsdoc comments only appears within comment blocks
-			if (!isBlock)
-				return;
-			if (text[0] !== '*')
-				return;
-			const jsdoc = parseJsdocFromComment (text);
-			fnDocs.push ({
-				jsdoc,
-				// text,
-				start,
-				end
-			});
-		}
+			const jsdoc = parseJsdocFromComment (isBlock, text, start, end);
+			if (jsdoc) fnDocs.push(jsdoc);
+		},
+		ecmaVersion: 'latest',
+		locations: true,
+		allowImportExportEverywhere: true,
 	});
 
-	
-
-	const typedefs = findTypedefs (fnDocs);
-	// console.log (typedefs);
-	if (typedefs && Object.keys(typedefs).length) {
-		console.log ('TYPEDEFS', typedefs);
-		if (typedefs.QueryWithColor) {
-			console.log (convertTypedefToSchema(typedefs.QueryWithColor));
-		}
-	}
+	const typedefs = findTypedefs(fnDocs);
 
 	let nodeIndex = 0;
 	let docNodeIdx;
 
 	// limit by top level functions only
+	// TODO: move to ast
 	const fns = ast.body.map ((entity, entityIdx) => {
 
-		let kind = 'function';
+		/** @satisfies {'function'|'express-handler'|'cli-handler'} */
+		let kind = "function";
 		let method;
 		let path;
 
-		if (entity.type === 'ExpressionStatement' && entity.expression.type === 'CallExpression') {
-			const expr = entity.expression;
-			// console.log ('CALLEE', expr.callee);
-			if (expr.callee.type !== 'MemberExpression') {
-				return;
-			}
-			method = expr.callee.property.name;
-			// TODO: other methods? https://expressjs.com/en/5x/api.html#routing-methods
-			if ('all get post put delete'.split(' ').includes (method)) {
-				kind = 'express-handler';
-			}
-			
-
-			// console.log ('ARGS', expr.arguments);
-			if (!(expr.arguments.length > 1 && expr.arguments[0].type === 'Literal')) {
-				return;
-			}
-
-			path = expr.arguments[0].value;
-
-			// TODO: multiple arguments
-			entity = expr.arguments[1];
-
-		}
-
-		if (!['FunctionDeclaration', 'ArrowFunctionExpression'].includes(entity.type)) {
-			console.log (entity.type);
-			return;
-		}
-
+		let declaration, unwrapped = entity;
 		let name;
-		if (entity.type === 'FunctionDeclaration') {
-			name = entity.id.name;
+
+		if (unwrapped.type ===  'ExportNamedDeclaration' && unwrapped.declaration) {
+			unwrapped = unwrapped.declaration;
+		}
+		
+		if (unwrapped.type === 'FunctionDeclaration') {
+			declaration = unwrapped;
+			name = declaration.id.name;
+		} else if (unwrapped.type === 'VariableDeclaration') {
+			// ignoring additional declarations
+			({name, declaration} = processNamedVarDeclaration(unwrapped));			
 		}
 
-		const vars = getVarsFromDeclaration (entity.params);
+		if (!declaration || !name) return;
+
+		const vars = getVarsFromDeclaration(declaration.params);
 
 		/** @type {FunContract} */
 		const funContract = {
 			name,
 			// type: entity.type,
-			kind, // 'function' or 'express-handler' or 'cli-handler'
 			description: undefined,
-			vars
+			vars,
 		};
 
 		docNodeIdx = findPrecedingCommentNode (
@@ -399,54 +402,26 @@ export function parseSource (source, options) {
 		);
 
 		if (docNodeIdx === undefined) {
-			console.log ('no jsdoc', fnDocs);
 			return funContract;
 		}
 		
 		// found commend which starts earlier than preceding entity end
-		if (entityIdx > 0 && ast.body[entityIdx].end > fnDocs[docNodeIdx].start) {
-			console.log ('found preceding jsdoc, but it is for another function');
+		if (entityIdx > 0 && ast.body[entityIdx - 1].end > fnDocs[docNodeIdx].start) {
 			return funContract;
 		}
 		
 		const fnDoc = fnDocs[docNodeIdx];
 
-		funContract.description = fnDoc.jsdoc.description;
+		funContract.description = fnDoc.description;
 
-		// use input
+		const documentedVars = documentVariables(vars, fnDoc);
 
-		const namedParams = combineNamedParams (vars, fnDoc.jsdoc);
-
-		funContract.named = namedParams;
+		funContract.vars = documentedVars;
 
 		return funContract;
 
-		commentNode.context = {
-			name: ctxNode.id.name,
-			type: ctxNode.type,
-			params
-		};
+	}).filter (fn => fn !== undefined);
 
-	}).filter (fn => fn);
-
-
-	// fnDocs.forEach (commentNode => {
-
-	// 	nodeIndex = findNodeIndexForComment (ast, nodeIndex, commentNode);
-
-	// 	// TODO: filter functions?
-	// 	const ctxNode = commentNode.ctxNode = ast.body[nodeIndex];
-
-	// 	const params = parseFunctionParams (ctxNode.params);
-
-	// 	augmentFunctionParams (params, commentNode.jsdoc);
-
-	// 	commentNode.context = {
-	// 		name: ctxNode.id.name,
-	// 		type: ctxNode.type,
-	// 		params
-	// 	};
-	// });
 
 	return fns;
 }

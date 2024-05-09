@@ -1,20 +1,28 @@
 const typedefs = {};
 
+/// TODO: allow bad design? store JSDoc filename to allow same type name
+
 /**
  * TypeDef class
  * @property {string} name type name
+ * @property {string} description description
  * @property {string} type base type
  * @property {Object<string, any>} props props for object type
+ * @property {number} minLength
+ * @property {number} maxLength
+ * @property {number} minimum
+ * @property {number} maximum
+ * @property {number} minItems
+ * @property {number} maxItems
+ * @property {number} minProperties
+ * @property {number} maxProperties
  */
 export class TypeDef {
-	name;
-	type;
-	props;
 	/**
 	 * Lookup definitions by name
 	 * @param {Object} o lookup properties
 	 * @param {string} o.name lookup by name
-	 * @returns {TypeDef}
+	 * @returns {TypeDef | undefined}
 	 */
 	static lookup ({name}) {
 		const typedef = typedefs[name];
@@ -22,7 +30,7 @@ export class TypeDef {
 		if (!typedef)
 			return;
 
-		console.log ('LOOKUP', typedef.name);
+		// console.log ('LOOKUP', typedef.name);
 
 		if (typedef.type === 'Object') {
 			// TODO: circular
@@ -46,15 +54,17 @@ export class TypeDef {
 	 * TypeDef constructor
 	 * @constructor
 	 * @param {Object} o options
-	 * @param {string}      o.name type name
+	 * @param {string} o.name type name
+	 * @param {string} [o.description] description
 	 * @param {string} [o.baseType='Object'] base type
 	 * @param {Object} [o.props] props for object type
-	 * @param {*}      [o.range] acceptable value range
+	 * @param {string} [o.range] acceptable value range
 	 */
-	constructor ({name, baseType = 'Object', props, range}) {
-		this.name  = name;
-		this.type  = baseType;
-		this.props = props;
+	constructor ({name, description, baseType = 'Object', props, range}) {
+		this.name        = name;
+		this.description = description;
+		this.type        = baseType;
+		this.props       = props;
 
 		if (range !== undefined) {
 			let rangeStart, rangeEnd;
@@ -83,11 +93,12 @@ export class TypeDef {
 
 		typedefs[this.name] = this;
 	}
+
 	exportToOpenAPI () {
 		const required   = [];
 		const properties = [];
 		Object.keys(this.props).forEach ((propName) => {
-			const prop = typedef.props[propName];
+			const prop = this.props[propName];
 			if (!prop.optional) {
 				required.push (prop.name);
 			}
@@ -100,9 +111,9 @@ export class TypeDef {
 			});
 		});
 		return {
-			name:        typedef.typedef,
-			description: typedef.description,
-			type:        typedef.baseType,
+			name:        this.name,
+			description: this.description,
+			type:        this.type,
 			properties,
 			required,
 		};

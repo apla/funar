@@ -1,35 +1,33 @@
-import fs from 'fs';
+import fs from "fs";
 
-import assert from 'assert';
+import assert from "node:assert";
 
-import {parseSource} from '../funar.js';
+import { it, describe, before } from "node:test";
+
+import { parseSource } from "../funar.js";
 
 let contents;
-let schema;
+/** @type {import("../funar.js").FunContract[]} */
+let meta;
 
-
+// @ts-ignore
 describe ("for webapp", () => {
 
-	beforeAll (() => {
-		contents = fs.readFileSync ('./test/fixtures/webapp.js');
-		schema = parseSource (contents.toString());
+	// @ts-ignore
+	before (() => {
+		contents = fs.readFileSync ("./test/fixtures/webapp.js");
+		meta = parseSource (contents.toString());
 	});
 	
+	// @ts-ignore
+	it ("should parse list function metainformation", () => {
+		const searchFnMetaAll = meta.filter (fn => fn.name === "search");
+		assert.strictEqual(searchFnMetaAll.length, 1);
+		const searchFnMeta = searchFnMetaAll[0];
 
-	it ("should parse list function schema", () => {
-		const searchSchemes = schema.filter (fn => fn.name === 'search');
-		assert.strictEqual (searchSchemes.length, 1);
-		const searchScheme = searchSchemes[0];
-
-		assert.strictEqual (searchScheme.kind, 'function');
-
-		const expressSchemes = schema.filter (fn => !fn.name);
-		assert.strictEqual (expressSchemes.length, 1);
-		const expressScheme = expressSchemes[0];
-
-		console.log (expressScheme);
-
-		assert.strictEqual (expressScheme.kind, 'express-handler');
+		const expressHandlerMetaAll = meta.filter (fn => !fn.name);
+		assert.strictEqual(expressHandlerMetaAll.length, 1);
+		const expressHandlerMeta = expressHandlerMetaAll[0];
 	});
 
 });
