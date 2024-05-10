@@ -32,7 +32,7 @@ jobs:
     - run: npm run coverage
     - name: Run coverage
       id: coverage
-      run: c8 report --reporter text
+      run: npm run show-coverage
     - name: Coverage summary
       run: |
         echo "${{ steps.coverage.outputs.stdout }}" | tail -n +2 >> "$GITHUB_STEP_SUMMARY"
