@@ -237,8 +237,6 @@ function parseJsdocFromComment (isBlock, commentText, start, end) {
 		let paramPath;
 		
 		paramTags.forEach ((tag, idx) => {
-			/** @type {FunParameter} */
-			let param = {name: tag.name, type: tag.type, description: tag.description, default: tag.default, isOptional: tag.optional};
 			// paramByName[tag.name.replace (/.*\./, '')] = tag;
 			// paramByName[tag.name] = tag;
 			const matchingDestructured = tag.name.match (/(?:(.*)\.)?(.*)/);
@@ -253,9 +251,19 @@ function parseJsdocFromComment (isBlock, commentText, start, end) {
 				paramPath = `${topParamIndex}.${tag.name.replace(/^[^\.]+\./, '')}`;
 			} else {
 				topParamIndex ++;
-				param.argIndex = topParamIndex;
+				// param.argIndex = topParamIndex;
 				paramPath = '' + topParamIndex;
 			}
+
+			/** @type {FunParameter} */
+			let param = {
+				name: tag.name,
+				type: tag.type,
+				description: tag.description,
+				default: tag.default,
+				isOptional: tag.optional,
+				path: paramPath
+			};
 
 			const specialityMatch = tag.type.match(/(.*)\[\]$|^Array<(.*)>$|^Object<(.*)>$|^Record<(.*)>$/);
 			if (specialityMatch) {
