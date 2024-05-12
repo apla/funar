@@ -34,7 +34,7 @@ import * as acorn from "acorn";
  * @returns {FunParameter[]}
  */
 function parseASTParamNames (astParam, path) {
-	let name, type, alias, defaultVal;
+	let name, type, alias, defaultVal, isOptional;
 
 	// regular param f(a)
 	if (astParam.type === 'Identifier') {
@@ -68,11 +68,14 @@ function parseASTParamNames (astParam, path) {
 
 		const parsedLeftPart = parseASTParamNames(astParam.left, path);
 
+		isOptional = true;
+
 		if (astParam.left.type === "Identifier") {
 			if (astParam.right.type === 'Literal') {
 				defaultVal = astParam.right.value;
 			} else if (astParam.right.type === 'Identifier') {
 				alias = astParam.right.name;
+				isOptional = false;
 			} else if ( // param = _param ?? defaultValue | left = _left ?? _right
 				astParam.right.type === 'LogicalExpression'
 				&& astParam.right.operator === '??'
@@ -86,7 +89,7 @@ function parseASTParamNames (astParam, path) {
 				...parsedLeftPart[0],
 				alias,
 				default: defaultVal,
-				isOptional: true,
+				isOptional,
 			}]
 		}
 
