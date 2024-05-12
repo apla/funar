@@ -1,18 +1,23 @@
+import { format, parseArgs } from "node:util";
+
 /** @typedef {import("../src/funar.js").FunContract} FunContract */
+/** @typedef {import("../src/funar.js").FunParameter} FunParameter */
 /** @typedef {import("node:util").ParseArgsConfig} ParseArgsConfig */
+
+import { parseFloatFromString, parseBigIntFromString } from "./funar.js";
 
 /**
  * Converts a contract object into an array of options objects.
  *
  * @param {FunContract} contract - The contract object to be converted.
- * @return {{argParserOpts: ParseArgsConfig, argPlacement: Object<string,string>}} An array of options objects, each containing the name, type, and description of a variable.
+ * @return {{argParserOpts: ParseArgsConfig, argPlacement: Object<string,FunParameter>}} An array of options objects, each containing the name, type, and description of a variable.
  */
 export function convertContractToOptions(contract) {
     /** @type {ParseArgsConfig} */
     const argParserOpts = {options: {}};
     const options = argParserOpts.options;
 
-	/** @type {Object<string,string>} */
+	/** @type {Object<string,FunParameter>} */
     const argPlacement = {};
 
     for (const [name, varMeta] of Object.entries(contract.vars)) {
@@ -44,8 +49,9 @@ export function convertContractToOptions(contract) {
 			option.short = varMeta.alias;
 		}
 
-        argPlacement[name] = varMeta.path;
+        argPlacement[name] = varMeta;
 
+		// @ts-ignore
         options[name] = option;
     }
 
@@ -62,7 +68,7 @@ export function convertContractToOptions(contract) {
  * Creates an object mapper function that takes an object and maps its properties
  * to an array of arguments based on a argument placement template.
  *
- * @param {Object<string,string>} template - The template object that defines the mapping between object properties and array indices.
+ * @param {Object<string,FunParameter>} template - The template object that defines the mapping between object properties and array indices.
  * @return {FillDataFunction} The object mapper function that takes an object and returns an array of arguments.
  */
 export function createObjectMapper(template) {
@@ -70,8 +76,8 @@ export function createObjectMapper(template) {
 	return function(obj) {
 		const args = [];
 
-		Object.entries(template).map(([varName, value]) => {
-			const [argIndexStr, ...pathChunks] = value.split('.');
+		Object.entries(template).map(([varName, {path, type, isOptional}]) => {
+			const [argIndexStr, ...pathChunks] = path.split('.');
 
 			const argIndex = parseInt(argIndexStr, 10);
 
@@ -82,6 +88,8 @@ export function createObjectMapper(template) {
 
 			let targetObj = args[argIndex] = args[argIndex] ?? {};
 
+			// lastChunk is not undefined because pathChunks is not empty
+			/** @type {string} */ // @ts-ignore
 			const lastChunk = pathChunks.pop();
 
 			for (let pathChunk in pathChunks) {
@@ -91,11 +99,71 @@ export function createObjectMapper(template) {
 				targetObj = targetObj[pathChunk];
 			}
 
-			// @ts-ignore lastChunk is not undefined because pathChunks is not empty
+			// TODO: arrays, objects, enums
+			// ensure param is provided unless it is optional
+			if (!isOptional && !obj[varName]) {
+				throw new Error(format("Missing required parameter: %s", varName));
+			}
+
 			targetObj[lastChunk] = obj[varName];
+
+			// params can be bool or string, we need to parse param value for integers/numbers
+			if (type === "number") {
+				targetObj[lastChunk] = parseFloatFromString(obj[varName]);
+				if (targetObj[lastChunk] === undefined)
+					throw new Error(format("Error parsing parameter: %s type %s", varName, type));
+			} else if (type === "bigint") {
+				targetObj[lastChunk] = parseBigIntFromString(obj[varName]);
+				if (targetObj[lastChunk] === undefined)
+					throw new Error(format("Error parsing parameter: %s type %s", varName, type));
+			}
+
+			// TODO: validating param value
 
 	  	});
 
 		return args;
 	};
 }
+
+/**
+ * Executes a function with the provided contract.
+ *
+ * @param {Function} fn - The function to be executed.
+ * @param {FunContract} contract - The contract object containing the necessary information for executing the function.
+ * @return {void} This function does not return a value.
+ */
+export function executeFunction (fn, contract) {
+
+	const connectOptions = convertContractToOptions(contract);
+
+	// TODO: add -h/--help and -v/--version automatically
+	// TODO: build usage on error from contract variables
+
+	let usageAfterError = generateUsage(contract);
+
+	try {
+		const { values: parsedVariables, positionals } = parseArgs({
+			options: connectOptions.argParserOpts.options,
+			strict: true,
+			allowPositionals: true,
+		});
+
+		const mapper = createObjectMapper(connectOptions.argPlacement);
+
+		const args = mapper(parsedVariables);
+
+		// we successfully checked all required parameters, no need to display usage
+		usageAfterError = "";
+		fn.apply(null, args);
+	} catch (err) {
+		console.error(err.message);
+		if (usageAfterError)
+			console.error(usageAfterError);
+		process.exit(1);
+	}
+
+	process.exit(0);
+
+}
+

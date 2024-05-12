@@ -9,7 +9,7 @@ import { it, describe, before } from "node:test";
 /** @typedef {import("../src/funar.js").FunContract} FunContract */
 
 import { parseSource } from "../src/funar.js";
-import { convertContractToOptions, createObjectMapper } from "../src/cli.js";
+import { convertContractToOptions, createObjectMapper, generateUsage } from "../src/cli.js";
 
 /** @type {Buffer} */
 let contentsMulti;
@@ -56,14 +56,12 @@ describe("for cli", () => {
 				logDiff:  { type: "boolean",}
 			});
 
-			assert.deepStrictEqual(connectOptions.argPlacement, {
-				path:     "0.path",
-    			baudrate: "0.baudrate",
-    			databits: "0.databits",
-    			parity:   "0.parity",
-    			logFile:  "0.logFile",
-    			logDiff:  "0.logDiff"
-			});
+			assert.strictEqual(connectOptions.argPlacement.path.path,     "0.path");
+			assert.strictEqual(connectOptions.argPlacement.baudrate.path, "0.baudrate");
+			assert.strictEqual(connectOptions.argPlacement.databits.path, "0.databits");
+			assert.strictEqual(connectOptions.argPlacement.parity.path,   "0.parity");
+			assert.strictEqual(connectOptions.argPlacement.logFile.path,  "0.logFile");
+			assert.strictEqual(connectOptions.argPlacement.logDiff.path,  "0.logDiff");
 
 		});
 
@@ -84,7 +82,7 @@ describe("for cli", () => {
 
 			const expectedVariables = {
 				path:     "/dev/ttyUSB0",
-				baudrate: "115200",
+				baudrate: 115200,
 				databits: "8",
 				parity:   "none",
 				logFile:  "test.log",
@@ -110,7 +108,7 @@ describe("for cli", () => {
 
 			const parsedVariables = {
 				path:     "/dev/ttyUSB0",
-				baudrate: "115200",
+				baudrate: 115200,
 				databits: "8",
 				parity:   "none",
 				logFile:  "test.log",
@@ -144,18 +142,16 @@ describe("for cli", () => {
 				logDiff:   { type: "boolean",}
 			});
 
-			assert.deepStrictEqual(connectOptions.argPlacement, {
-				path:      "0",
-				baudrate:  "1",
-				databits:  "2",
-				parity:    "3",
-				stopbits:  "4",
-				reconnect: "5",
-				noEcho:    "6",
-				newline:   "7",
-				logFile:   "8",
-				logDiff:   "9"
-			});
+			assert.strictEqual(connectOptions.argPlacement.path.path, "0");
+			assert.strictEqual(connectOptions.argPlacement.baudrate.path, "1");
+			assert.strictEqual(connectOptions.argPlacement.databits.path, "2");
+			assert.strictEqual(connectOptions.argPlacement.parity.path, "3");
+			assert.strictEqual(connectOptions.argPlacement.stopbits.path, "4");
+			assert.strictEqual(connectOptions.argPlacement.reconnect.path, "5");
+			assert.strictEqual(connectOptions.argPlacement.noEcho.path, "6");
+			assert.strictEqual(connectOptions.argPlacement.newline.path, "7");
+			assert.strictEqual(connectOptions.argPlacement.logFile.path, "8");
+			assert.strictEqual(connectOptions.argPlacement.logDiff.path, "9");
 
 		});
 
