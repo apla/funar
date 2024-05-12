@@ -51,10 +51,14 @@ jobs:
         fi
         } >> $GITHUB_STEP_SUMMARY
         
-    # - name: Upload coverage reports to Codecov
-    #   uses: codecov/codecov-action@v4.0.1
-    #   with:
-    #     token: ${{ secrets.CODECOV_TOKEN }}
+    - name: Upload coverage reports to Codecov
+      uses: codecov/codecov-action@v4.0.1
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+    - name: Create summary
+      run: |
+        echo '### Code coverage' >> $GITHUB_STEP_SUMMARY
+        echo 'Visit [codecov](https://app.codecov.io/gh/apla/funar/) to see the code coverage reports' >> $GITHUB_STEP_SUMMARY
     # - run: npm publish
     #   env:
     #     NODE_AUTH_TOKEN: ${{ secrets.NODE_AUTH_TOKEN }}
