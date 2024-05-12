@@ -121,6 +121,27 @@ describe("for cli", () => {
 
 		});
 
+		it("should generate `connect` usage", () => {
+
+			const connectSchemes = schemaMulti.filter(fn => fn.name === "connect");
+			assert.strictEqual(connectSchemes.length, 1);
+			const connectSchema = connectSchemes[0];
+
+			const usage = generateUsage(connectSchema);
+
+			assert.strictEqual(usage, `Connect to the serial port
+Usage: connect [options]
+Required:
+  -p, --path=<string>             serial port path
+Optional:
+  -b, --baudrate=<number>         baudrate (default: "9600")
+  --databits=<5|6|7|8>            data bits (default: "8")
+  --parity=<"none"|"even"|"odd">  parity bits (default: "none")
+  --logFile=<string>              log file path
+  --logDiff                       use diff format for log file`);
+
+		});
+
 		it("should convert contract `connect2` to argParser's options", () => {
 
 			const connectSchemes = schemaMulti.filter(fn => fn.name === "connect2");

@@ -167,3 +167,46 @@ export function executeFunction (fn, contract) {
 
 }
 
+/**
+ *
+ * @param {FunContract} contract
+ */
+export function generateUsage(contract) {
+
+	/** @type {Array<[string,string]>} */
+	const required = [];
+	/** @type {Array<[string,string]>} */
+	const optional = [];
+	let leftColWidth = 0;
+
+	for (const [name, varMeta] of Object.entries(contract.vars)) {
+		if (varMeta.type === undefined) continue;
+		const optionType = varMeta.type === "boolean" ? "" : `=<${varMeta.type}>`;
+		const optionName = `  ${varMeta.alias ? `-${varMeta.alias}, ` : ""}--${name}${optionType}`;
+
+		leftColWidth = Math.max(leftColWidth, optionName.length);
+
+		/** @type {[string, string]} */
+		const option = [optionName, `${varMeta.description}${varMeta.default ? ` (default: "${varMeta.default}")` : ""}`];
+		if (varMeta.isOptional) {
+			optional.push(option);
+		} else {
+			required.push(option);
+		}
+	}
+
+	function mapOption ([optionName, description]) {
+		return `${optionName.padEnd(leftColWidth)}  ${description}`;
+	}
+
+	const usage = [
+		`${contract.description}`,
+		`Usage: ${contract.name} [options]`,
+		...(required.length ? [`Required:`] : []),
+		...required.map(mapOption),
+		...(optional.length ? [`Optional:`] : []),
+		...optional.map(mapOption),
+	];
+
+	return usage.join("\n");
+}
