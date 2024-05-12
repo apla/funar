@@ -80,9 +80,10 @@ describe("for cli", () => {
 				args: ["connect", "--path", "/dev/ttyUSB0", "--baudrate", "115200", "--databits", "8", "--parity", "none", "--logFile", "test.log", "--logDiff"]
 			});
 
+			// expected variables from nodejs parseArgs, so all the values are strings
 			const expectedVariables = {
 				path:     "/dev/ttyUSB0",
-				baudrate: 115200,
+				baudrate: "115200",
 				databits: "8",
 				parity:   "none",
 				logFile:  "test.log",
@@ -118,6 +119,48 @@ describe("for cli", () => {
 			const data = mapper(parsedVariables);
 
 			assert.deepStrictEqual(data, [parsedVariables]);
+
+		});
+
+		it("should throw if there are missing required `connect` variables", () => {
+
+			const connectSchemes = schemaMulti.filter(fn => fn.name === "connect");
+			assert.strictEqual(connectSchemes.length, 1);
+			const connectSchema = connectSchemes[0];
+
+			const connectOptions = convertContractToOptions(connectSchema);
+
+			const mapper = createObjectMapper(connectOptions.argPlacement);
+
+			const parsedVariables = {
+				// path:     "/dev/ttyUSB0",
+				baudrate: 115200,
+			};
+
+			assert.throws(() => {
+				const data = mapper(parsedVariables);
+			});
+
+		});
+
+		it("should throw if there are wrong type of `connect` variables", () => {
+
+			const connectSchemes = schemaMulti.filter(fn => fn.name === "connect");
+			assert.strictEqual(connectSchemes.length, 1);
+			const connectSchema = connectSchemes[0];
+
+			const connectOptions = convertContractToOptions(connectSchema);
+
+			const mapper = createObjectMapper(connectOptions.argPlacement);
+
+			const parsedVariables = {
+				path:     "/dev/ttyUSB0",
+				baudrate: "/dev/ttyUSB0",
+			};
+
+			assert.throws(() => {
+				const data = mapper(parsedVariables);
+			});
 
 		});
 
