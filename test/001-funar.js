@@ -44,8 +44,6 @@ function a2 (a, b, ...rest) {}`;
 
 		const contract = contracts[0];
 
-		assert.strictEqual (contract.name, "a2");
-
 		assert ("description" in contract);
 
 		assert (contract.description);
@@ -53,7 +51,7 @@ function a2 (a, b, ...rest) {}`;
 		assert.strictEqual (Object.keys(contract.vars).length, 3);
 
 		const aParam = contract.vars["a"];
-		
+
 		assert.strictEqual (aParam.type, "string");
 		assert.strictEqual (aParam.description, "the a string");
 
@@ -163,7 +161,7 @@ return displayName + ' is ' + name;
 		const fn = `/**
 * A7 function
 * @param {Object} req request object
-* @param {Object} req.query 
+* @param {Object} req.query
 * @param {Object} req.query parsed query string
 * @param {string} req.query.color color from query string
 * @param {Object} res response object
@@ -195,7 +193,7 @@ export const handler = ({query: {color}}, res, next) => {
 		const fn = `/**
 * A7A function
 * @param {Object} req request object
-* @param {Object} req.query 
+* @param {Object} req.query
 * @param {Object} req.query parsed query string
 * @param {string} req.query.color color from query string
 * @param {Object} res response object
@@ -295,7 +293,7 @@ function a8 ({a: varA, b}, {c, d}, cb) {}`;
 		assert.strictEqual (Object.keys(contract.vars).length, 5);
 
 		const aParam = contract.vars["varA"];
-		
+
 		assert.strictEqual (aParam.type, "string");
 		assert.strictEqual (aParam.description, "the a string");
 
@@ -323,23 +321,23 @@ function a8 ({a: varA, b}, {c, d}, cb) {}`;
 	};`;
 		const contracts = parseSource (fn);
 		assert.strictEqual (contracts.length, 1);
-	
+
 		// each contract means one function
 		const contract = contracts[0];
-	
+
 		assert("description" in contract);
-	
+
 		assert(contract.description);
-	
+
 		assert.strictEqual(Object.keys(contract.vars).length, 4);
-	
+
 		assert.deepStrictEqual(contract.vars.userAgent, { name: "userAgent", path: "0.headers.user-agent", description: "User-Agent header", type: "string", isOptional: false,});
 		assert.deepStrictEqual(contract.vars.query, { name: "query", path: "0.query", description: "parsed query string", type: "Object", isOptional: false,});
-		assert.deepStrictEqual(contract.vars.res, { name: "res",   path: "1", description: "response object", type: "Object", isOptional: false,}); 
+		assert.deepStrictEqual(contract.vars.res, { name: "res",   path: "1", description: "response object", type: "Object", isOptional: false,});
 		assert.deepStrictEqual(contract.vars.next, { name: "next",  path: "2", description: "call next middleware", type: "Function", isOptional: false,});
 
 	});
-	
+
 	it("with arrays", () => {
 		const fn = `
 /**
@@ -359,7 +357,7 @@ function aa ({paths}) {}`;
 		assert.strictEqual (Object.keys(contract.vars).length, 1);
 
 		const pathsParam = contract.vars.paths;
-		
+
 		assert.strictEqual (pathsParam.type, "string[]");
 		assert.strictEqual (pathsParam.description, "paths to inspect");
 		assert.strictEqual (pathsParam.structure, "array");

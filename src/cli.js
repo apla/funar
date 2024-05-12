@@ -111,11 +111,11 @@ export function createObjectMapper(template) {
 			if (type === "number") {
 				targetObj[lastChunk] = parseFloatFromString(obj[varName]);
 				if (targetObj[lastChunk] === undefined)
-					throw new Error(format("Error parsing parameter: %s type %s", varName, type));
+					throw new Error(format("Error parsing parameter '%s', expected type is '%s'", varName, type));
 			} else if (type === "bigint") {
 				targetObj[lastChunk] = parseBigIntFromString(obj[varName]);
 				if (targetObj[lastChunk] === undefined)
-					throw new Error(format("Error parsing parameter: %s type %s", varName, type));
+					throw new Error(format("Error parsing parameter '%s', expected type is '%s'", varName, type));
 			}
 
 			// TODO: validating param value

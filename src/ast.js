@@ -7,7 +7,7 @@ import * as acorn from "acorn";
 
 /**
  * Get AST node regardless of default value
- * @param {acorn.Pattern} astNode 
+ * @param {acorn.Pattern} astNode
  */
  function getASTType (astNode) {
 	/** @type {string|undefined} */
@@ -29,7 +29,7 @@ import * as acorn from "acorn";
 
 /**
  * Parse single parameter from function declaration
- * @param {acorn.Pattern} astParam 
+ * @param {acorn.Pattern} astParam
  * @param {string|number} path position or destructuring locator
  * @returns {FunParameter[]}
  */
@@ -48,7 +48,7 @@ function parseASTParamNames (astParam, path) {
 			...parseASTParamNames(astParam.argument, path)[0],
 			...{rest: true, forcedType: 'Array'}
 		}];
-	
+
 	} else if (astParam.type === 'ObjectPattern') {
 		/** @type {FunParameter[]} */
 		const result = [];
@@ -57,7 +57,7 @@ function parseASTParamNames (astParam, path) {
 			// sometimes it is {key: "value"}, but sometimes it is {"key": "value"}
 			// @ts-ignore TODO: add more type guards
 			const propPath = `${path}.${prop.key.name ?? (prop.key.value.includes(".") ? prop.key.raw : prop.key.value)}`;
-			
+
 			const parsedPropValue = parseASTParamNames(prop.value, propPath);
 
 			result.push(...parsedPropValue);
@@ -94,7 +94,7 @@ function parseASTParamNames (astParam, path) {
 		}
 
 		return parsedLeftPart;
-		
+
 	} else {
 		console.warn (`unexpected parameter of type ${type}`);
 		return [];
@@ -114,7 +114,7 @@ export function getVarsFromDeclaration (astParams) {
 		paramList.map((param) => {
 			acc[param.name] = {...param};
 		});
-		
+
 		return acc;
 	}, {});
 

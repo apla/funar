@@ -18,7 +18,7 @@ import {TypeDef} from './typedef.js';
 
 // typescript validation
 // https://github.com/pelotom/runtypes
-// 
+//
 
 // parsing functions
 // https://github.com/tunnckoCore/opensource/blob/master/packages/parse-function/test/index.js
@@ -87,7 +87,7 @@ const tagRename  = {optional: 'isOptional'};
 const usefulTags = 'description type optional isOptional default structure contains'.split (' ');
 
 function augmentParamDescription (paramDesc, jsdocParamDesc) {
-	
+
 	usefulTags.forEach (
 		k => jsdocParamDesc[k] !== undefined && (paramDesc[tagRename[k] || k] = paramDesc[k] || jsdocParamDesc[k])
 	);
@@ -109,8 +109,8 @@ function combineArgMeta (argMeta, jsDocParam) {
  * Function declaration can contain list of param names or structure with
  * param names. Each of those params will be turn into variable on function call.
  * This function returns flat list of named parameters.
- * @param {Object<string,FunParameter>} vars 
- * @param {*} jsdoc 
+ * @param {Object<string,FunParameter>} vars
+ * @param {*} jsdoc
  */
 function documentVariables (vars, jsdoc) {
 	/** @type {Object<string,FunParameter>} */
@@ -119,7 +119,7 @@ function documentVariables (vars, jsdoc) {
 	// TODO: add guard for parameter count and top jsdoc @param tag count match
 
 	const jsdocParamsByPath = {...jsdoc.paramsByPath};
-	
+
 	Object.keys(jsdoc.paramsByPath).forEach(path => {
 		const param = jsdoc.paramsByPath[path];
 		const customType = TypeDef.lookup({name: param.type});
@@ -139,9 +139,9 @@ function documentVariables (vars, jsdoc) {
 
 		// if we already have processed param, we don't need to do it again
 		if (namedParams[varMeta.name]) return;
-		
+
 		let paramJsdoc = {};
-		
+
 		// no destructuring, regular variable, param.variable means param.name
 		if (varMeta.name && jsdocParamsByPath[varMeta.path]) {
 			paramJsdoc = jsdocParamsByPath[varMeta.path];
@@ -170,7 +170,7 @@ function documentVariables (vars, jsdoc) {
 
 /**
  * Parse JSDoc structure from JSDoc text, compatible with acorn onComment event
- * 
+ *
  * @param {boolean} isBlock specifies that comment is a block one with asterisks
  * @param {string} commentText comment text without comment start and end tokens
  * @param {number} start starting position in the source
@@ -235,7 +235,7 @@ function parseJsdocFromComment (isBlock, commentText, start, end) {
 	if (paramTags.length) {
 		kind = "params";
 		let paramPath;
-		
+
 		paramTags.forEach ((tag, idx) => {
 			// paramByName[tag.name.replace (/.*\./, '')] = tag;
 			// paramByName[tag.name] = tag;
@@ -300,7 +300,7 @@ function parseJsdocFromComment (isBlock, commentText, start, end) {
 			baseType: typeTag ? typeTag.type : undefined,
 			props,
 			range: rangeTag ? rangeTag.name : undefined,
-			// pattern: 
+			// pattern:
 			description,
 		});
 	}
@@ -315,7 +315,7 @@ function parseJsdocFromComment (isBlock, commentText, start, end) {
 		// paramByNameTop,
 		// paramTagTree,
 		paramsByPath,
-		
+
 		typedef,
 
 		tags: jsdoc.tags,
@@ -327,8 +327,8 @@ function parseJsdocFromComment (isBlock, commentText, start, end) {
 }
 
 /**
- * 
- * @param {FunJSDoc[]} docNodes 
+ *
+ * @param {FunJSDoc[]} docNodes
  * @returns {Object<string, TypeDef>|undefined}
  */
 function findTypedefs (docNodes) {
@@ -351,8 +351,8 @@ function findTypedefs (docNodes) {
 }
 
 /**
- * 
- * @param {acorn.VariableDeclaration} entity 
+ *
+ * @param {acorn.VariableDeclaration} entity
  */
 function processNamedVarDeclaration (entity) {
 	let name, declaration;
@@ -410,13 +410,13 @@ export function parseSource (source, options) {
 		if (unwrapped.type ===  'ExportNamedDeclaration' && unwrapped.declaration) {
 			unwrapped = unwrapped.declaration;
 		}
-		
+
 		if (unwrapped.type === 'FunctionDeclaration') {
 			declaration = unwrapped;
 			name = declaration.id.name;
 		} else if (unwrapped.type === 'VariableDeclaration') {
 			// ignoring additional declarations
-			({name, declaration} = processNamedVarDeclaration(unwrapped));			
+			({name, declaration} = processNamedVarDeclaration(unwrapped));
 		}
 
 		if (!declaration || !name) return;
@@ -440,12 +440,12 @@ export function parseSource (source, options) {
 		if (docNodeIdx === undefined) {
 			return funContract;
 		}
-		
+
 		// found commend which starts earlier than preceding entity end
 		if (entityIdx > 0 && ast.body[entityIdx - 1].end > fnDocs[docNodeIdx].start) {
 			return funContract;
 		}
-		
+
 		const fnDoc = fnDocs[docNodeIdx];
 
 		funContract.description = fnDoc.description;
