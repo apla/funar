@@ -1,5 +1,7 @@
 import fs from "node:fs";
 
+import { parseArgs } from "node:util";
+
 import assert from "node:assert";
 
 import { it, describe, before } from "node:test";
@@ -46,22 +48,53 @@ describe("for cli", () => {
 			const connectOptions = convertContractToOptions(connectSchema);
 
 			assert.deepStrictEqual(connectOptions.argParserOpts.options, {
-				path:     { type: 'string',  multiple: false, short: 'p',       default: undefined },
-				baudrate: { type: 'string',  multiple: false, short: 'b',       default: 9600 },
-				databits: { type: 'string',  multiple: false, short: undefined, default: 8 },
-				parity:   { type: 'string',  multiple: false, short: undefined, default: 'none' },
-				logFile:  { type: 'string',  multiple: false, short: undefined, default: undefined },
-				logDiff:  { type: 'boolean', multiple: false, short: undefined, default: false }
+				path:     { type: "string", short: "p",},
+				baudrate: { type: "string", short: "b",},
+				databits: { type: "string",},
+				parity:   { type: "string",},
+				logFile:  { type: "string",},
+				logDiff:  { type: "boolean",}
 			});
 
 			assert.deepStrictEqual(connectOptions.argPlacement, {
-				path:     '0.path',
-    			baudrate: '0.baudrate',
-    			databits: '0.databits',
-    			parity:   '0.parity',
-    			logFile:  '0.logFile',
-    			logDiff:  '0.logDiff'
+				path:     "0.path",
+    			baudrate: "0.baudrate",
+    			databits: "0.databits",
+    			parity:   "0.parity",
+    			logFile:  "0.logFile",
+    			logDiff:  "0.logDiff"
 			});
+
+		});
+
+		it("should gather `connect` variable values from argv", () => {
+
+			const connectSchemes = schemaMulti.filter(fn => fn.name === "connect");
+			assert.strictEqual(connectSchemes.length, 1);
+			const connectSchema = connectSchemes[0];
+
+			const connectOptions = convertContractToOptions(connectSchema);
+
+			const { values: parsedVariables, positionals } = parseArgs({
+				options: connectOptions.argParserOpts.options,
+				strict: true,
+				allowPositionals: true,
+				args: ["connect", "--path", "/dev/ttyUSB0", "--baudrate", "115200", "--databits", "8", "--parity", "none", "--logFile", "test.log", "--logDiff"]
+			});
+
+			const expectedVariables = {
+				path:     "/dev/ttyUSB0",
+				baudrate: "115200",
+				databits: "8",
+				parity:   "none",
+				logFile:  "test.log",
+				logDiff:  true
+			};
+
+			// nodejs return a [Object: null prototype] which prevents object from deep comparison
+			assert.deepStrictEqual({...parsedVariables}, expectedVariables);
+
+			assert.deepStrictEqual(positionals, ["connect"]);
 
 		});
 
@@ -99,29 +132,29 @@ describe("for cli", () => {
 			const connectOptions = convertContractToOptions(connectSchema);
 
 			assert.deepStrictEqual(connectOptions.argParserOpts.options, {
-				path:      { type: 'string',  multiple: false, short: undefined, default: undefined },
-				baudrate:  { type: 'string',  multiple: false, short: undefined, default: 9600 },
-				databits:  { type: 'string',  multiple: false, short: undefined, default: 8 },
-				parity:    { type: 'string',  multiple: false, short: undefined, default: 'none' },
-				stopbits:  { type: 'string',  multiple: false, short: undefined, default: 1 },
-				reconnect: { type: 'boolean', multiple: false, short: undefined, default: true },
-				noEcho:    { type: 'boolean', multiple: false, short: undefined, default: false },
-				newline:   { type: 'string',  multiple: false, short: undefined, default: 'LF' },
-				logFile:   { type: 'string',  multiple: false, short: undefined, default: undefined },
-				logDiff:   { type: 'boolean', multiple: false, short: undefined, default: false }
+				path:      { type: "string",},
+				baudrate:  { type: "string",},
+				databits:  { type: "string",},
+				parity:    { type: "string",},
+				stopbits:  { type: "string",},
+				reconnect: { type: "boolean",},
+				noEcho:    { type: "boolean",},
+				newline:   { type: "string",},
+				logFile:   { type: "string",},
+				logDiff:   { type: "boolean",}
 			});
 
 			assert.deepStrictEqual(connectOptions.argPlacement, {
-				path:      '0',
-				baudrate:  '1',
-				databits:  '2',
-				parity:    '3',
-				stopbits:  '4',
-				reconnect: '5',
-				noEcho:    '6',
-				newline:   '7',
-				logFile:   '8',
-				logDiff:   '9'
+				path:      "0",
+				baudrate:  "1",
+				databits:  "2",
+				parity:    "3",
+				stopbits:  "4",
+				reconnect: "5",
+				noEcho:    "6",
+				newline:   "7",
+				logFile:   "8",
+				logDiff:   "9"
 			});
 
 		});
@@ -152,15 +185,15 @@ describe("for cli", () => {
 			const data = mapper(parsedVariables);
 
 			assert.deepStrictEqual(data, [
-  				'/dev/ttyUSB0', // path
-  				'115200',       // baudrate
-  				'8',            // databits
-  				'none',         // parity
+  				"/dev/ttyUSB0", // path
+  				"115200",       // baudrate
+  				"8",            // databits
+  				"none",         // parity
   				1,              // stopbits
   				true,           // reconnect
   				false,          // noEcho
-  				'LF',           // newline
-  				'test.log',     // logFile
+  				"LF",           // newline
+  				"test.log",     // logFile
   				true            // logDiff
 			]);
 

@@ -27,10 +27,22 @@ export function convertContractToOptions(contract) {
 
         const option = {
             type,
-            multiple: varMeta.structure === "array",
-            short: varMeta.alias,
-            default: varMeta.default,
+
+			// no need to set default. reasons:
+			// 1: type can be only string or boolean, so we need to parse and adopt type anyway
+			// 2: we will check the value before running our handler, defaults will mess things up a lot
+            // default: varMeta.default,
         };
+		if (varMeta.structure === "array") {
+			option.array = true;
+		} else if (varMeta.structure === "enum") {
+			option.type = "string";
+		} else if (varMeta.structure === "object") {
+			// TODO: what to do?
+		}
+		if (varMeta.alias) {
+			option.short = varMeta.alias;
+		}
 
         argPlacement[name] = varMeta.path;
 
