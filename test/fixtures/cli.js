@@ -24,7 +24,7 @@ export function list () {
  * @param {string}              [options.logFile]        log file path
  * @param {boolean}             [options.logDiff=false]  use diff format for log file
  */
-export function connect ({p, path = p, b, baudrate = b ?? 9600, databits = 8, parity, logFile, logDiff = false}) {
+export function connect ({path: p, path, b, baudrate = b ?? 9600, databits = 8, parity, logFile, logDiff = false}) {
 
 	return {path, baudrate, databits, parity};
 

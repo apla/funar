@@ -365,5 +365,33 @@ function aa ({paths}) {}`;
 
 	});
 
+	it("with alias", () => {
+		const fn = `
+/**
+ * AB function
+ * @param {Object} options
+ * @param {string} options.path path to inspect
+*/
+function ab ({path: p, path}) {}`;
+		const contracts = parseSource (fn, {ast: true, jsdoc: true});
+
+		assert.strictEqual (contracts.length, 1);
+
+		const contract = contracts[0];
+
+		assert.strictEqual (contract.name, "ab");
+
+		console.log(contract);
+
+		assert.strictEqual (Object.keys(contract.vars).length, 1);
+
+		const pathsParam = contract.vars.path;
+
+		assert.strictEqual (pathsParam.type, "string");
+		assert.strictEqual (pathsParam.description, "path to inspect");
+		assert.strictEqual (pathsParam.alias, "p");
+
+	});
+
 });
 

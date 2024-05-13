@@ -109,10 +109,28 @@ function parseASTParamNames (astParam, path) {
  */
 export function getVarsFromDeclaration (astParams) {
 
+	const paths = {};
+
 	/** @type {Object<string,FunParameter>} */
 	const params = astParams.map (parseASTParamNames).reduce((acc, paramList) => {
 		paramList.map((param) => {
 			acc[param.name] = {...param};
+			// to support multiple destructured vars with the same path, but different var name,
+			// such as ({path: p, path}) => {}
+			if (paths[param.path]) {
+
+				const prevParam = paths[param.path];
+
+				if (param.path.match(`\\.${prevParam.name}$`)) {
+					acc[prevParam.name].alias = param.name;
+					delete acc[param.name];
+					return;
+				} else if (param.path.match(`\\.${param.name}$`)) {
+					acc[param.name].alias = prevParam.name;
+					delete acc[prevParam.name];
+				}
+			}
+			paths[param.path] = param;
 		});
 
 		return acc;
