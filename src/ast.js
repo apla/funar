@@ -130,6 +130,12 @@ export function getVarsFromDeclaration (astParams) {
 					delete acc[prevParam.name];
 				}
 			}
+
+			// for a case ({b, bbb = b}) => {}
+			if (acc[acc[param.name].alias]) {
+				delete acc[acc[param.name].alias];
+			}
+
 			paths[param.path] = param;
 		});
 

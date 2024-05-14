@@ -365,31 +365,76 @@ function aa ({paths}) {}`;
 
 	});
 
-	it("with alias", () => {
+	it("with alias form 1", () => {
 		const fn = `
 /**
  * AB function
  * @param {Object} options
  * @param {string} options.path path to inspect
+ * @param {string} [options.logfile="funar.log"] log file to write
 */
-function ab ({path: p, path}) {}`;
-		const contracts = parseSource (fn, {ast: true, jsdoc: true});
+function ab ({path: p, path, logfile: l, logfile = "funar.log"}) {}`;
+		const contracts = parseSource(fn, {ast: true, jsdoc: true});
 
-		assert.strictEqual (contracts.length, 1);
+		assert.strictEqual(contracts.length, 1);
 
 		const contract = contracts[0];
 
-		assert.strictEqual (contract.name, "ab");
+		assert.strictEqual(contract.name, "ab");
 
 		console.log(contract);
 
-		assert.strictEqual (Object.keys(contract.vars).length, 1);
+		assert.strictEqual(Object.keys(contract.vars).length, 2);
 
-		const pathsParam = contract.vars.path;
+		const pathParam = contract.vars.path;
 
-		assert.strictEqual (pathsParam.type, "string");
-		assert.strictEqual (pathsParam.description, "path to inspect");
-		assert.strictEqual (pathsParam.alias, "p");
+		assert.strictEqual(pathParam.type, "string");
+		assert.strictEqual(pathParam.description, "path to inspect");
+		assert.strictEqual(pathParam.alias, "p");
+
+		const logfileParam = contract.vars.logfile;
+
+		assert.strictEqual(logfileParam.type, "string");
+		assert.strictEqual(logfileParam.description, "log file to write");
+		assert.strictEqual(logfileParam.alias, "l");
+		assert.strictEqual(logfileParam.default, "funar.log");
+
+	});
+
+	it("with alias form 2", () => {
+		const fn = `
+/**
+ * AC function
+ * @param {Object} options
+ * @param {number} options.baudrate baudrate
+ * @param {5|6|7|8} [options.databits=8] data bits
+*/
+function ac ({b, baudrate = b, d, databits = d ?? 8}) {}`;
+		const contracts = parseSource(fn, {ast: true, jsdoc: true});
+
+		assert.strictEqual(contracts.length, 1);
+
+		const contract = contracts[0];
+
+		assert.strictEqual(contract.name, "ac");
+
+		console.log(contract);
+
+		assert.strictEqual(Object.keys(contract.vars).length, 2);
+
+		const baudrateParam = contract.vars.baudrate;
+
+		assert.strictEqual(baudrateParam.type, "number");
+		assert.strictEqual(baudrateParam.description, "baudrate");
+		assert.strictEqual(baudrateParam.alias, "b");
+
+		const databitsParam = contract.vars.databits;
+
+		assert.strictEqual(databitsParam.type, "5|6|7|8");
+		assert.strictEqual(databitsParam.description, "data bits");
+		assert.strictEqual(databitsParam.alias, "d");
+		assert.strictEqual(databitsParam.default, 8);
+
 
 	});
 
