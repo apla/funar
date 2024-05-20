@@ -210,3 +210,29 @@ export function generateUsage(contract) {
 
 	return usage.join("\n");
 }
+
+/**
+ * Generates a list of commands from the provided contracts and sorts them alphabetically.
+ *
+ * @param {FunContract[]} contracts - An array of contract objects containing the commands.
+ * @return {string} A formatted string of sorted commands.
+ */
+function generateCommandListUsage(contracts, exports) {
+	let leftColWidth = 0;
+
+	const exportedContracts = contracts.filter(contract => contract.name in exports);
+
+	for (const cIdx in exportedContracts) {
+		const contract = exportedContracts[cIdx];
+		leftColWidth = Math.max(leftColWidth, contract.name.length);
+	}
+
+	const commands = exportedContracts.map(contract => {
+		return `${contract.name.padEnd(leftColWidth)}  ${contract.description}`;
+	}).sort();
+
+	return [
+		"Available commands:",
+		...commands
+	].join("\n");
+}
