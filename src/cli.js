@@ -1,10 +1,19 @@
-import { format, parseArgs } from "node:util";
+import { format, parseArgs, inspect } from "node:util";
+
+// DO NOT MODIFY: separator line for code and imports
 
 /** @typedef {import("../src/funar.js").FunContract} FunContract */
 /** @typedef {import("../src/funar.js").FunParameter} FunParameter */
 /** @typedef {import("node:util").ParseArgsConfig} ParseArgsConfig */
 
-import { parseFloatFromString, parseBigIntFromString } from "./funar.js";
+import { parseFloatFromString, parseBigIntFromString } from "./convert.js";
+
+async function getPackageJson () {
+	const packageJson = await import("../package.json", {with: {type: "json"}});
+	console.log(packageJson.default.version);
+}
+
+// DO NOT MODIFY: separator line for code and imports
 
 /**
  * Converts a contract object into an array of options objects.
@@ -105,7 +114,11 @@ export function createObjectMapper(template) {
 				throw new Error(format("Missing required parameter: %s", varName));
 			}
 
+			if (obj[varName] === undefined) return;
+
 			targetObj[lastChunk] = obj[varName];
+
+			// console.log(`var name ${varName}`, obj[varName]);
 
 			// params can be bool or string, we need to parse param value for integers/numbers
 			if (type === "number") {
@@ -127,15 +140,71 @@ export function createObjectMapper(template) {
 }
 
 /**
+ *
+ * @param {FunContract[]} contracts contract to serialize
+ */
+export function serializeContracts (contracts, exports) {
+	const exportedContracts = contracts.filter(contract => contract.name in exports);
+	const contractsStr = inspect(exportedContracts, {
+		depth: null,
+		colors: false,
+		compact: false
+	});
+	return contractsStr;
+}
+
+/**
  * Executes a function with the provided contract.
  *
- * @param {Function} fn - The function to be executed.
- * @param {FunContract} contract - The contract object containing the necessary information for executing the function.
- * @return {void} This function does not return a value.
+ * @param {Object} options
+ * @param {FunContract[]} options.contracts - The contract object containing the necessary information for executing the function.
+ * @param {Object<string,Function>} options.exports - The function to be executed.
+ * @return {Promise<void>} This function does not return a value.
  */
-export function executeFunction (fn, contract) {
+export async function runScript ({contracts, exports}) {
 
-	const connectOptions = convertContractToOptions(contract);
+	const { values: preValues, positionals: prePositionals } = parseArgs({
+		options: {
+			help: {
+				type: "boolean",
+				alias: "h",
+			},
+			version: {
+				type: "boolean",
+				alias: "v",
+			}
+		},
+		strict: false,
+		allowPositionals: true,
+	});
+
+	if (preValues.help) {
+		console.log(generateCommandListUsage(contracts, exports));
+		process.exit(0);
+	}
+
+	if (preValues.version) {
+		const packageJson = await import("../package.json", {with: {type: "json"}});
+		console.log(packageJson.default.version);
+		process.exit(0);
+	}
+
+	if (!prePositionals.length) {
+		console.log(generateCommandListUsage(contracts, exports));
+		process.exit(1);
+	}
+
+	const fnName = prePositionals[0];
+	const contract = contracts.find(c => c.name === fnName);
+	const fn = exports[fnName];
+
+	if (!contract || !fn || typeof fn !== "function") {
+		// TODO: notify user that export is missing or wrong type
+		console.log(generateCommandListUsage(contracts, exports));
+		process.exit(1);
+	}
+
+	const optionsArgv = convertContractToOptions(contract);
 
 	// TODO: add -h/--help and -v/--version automatically
 	// TODO: build usage on error from contract variables
@@ -144,18 +213,18 @@ export function executeFunction (fn, contract) {
 
 	try {
 		const { values: parsedVariables, positionals } = parseArgs({
-			options: connectOptions.argParserOpts.options,
+			options: optionsArgv.argParserOpts.options,
 			strict: true,
 			allowPositionals: true,
 		});
 
-		const mapper = createObjectMapper(connectOptions.argPlacement);
+		const mapper = createObjectMapper(optionsArgv.argPlacement);
 
 		const args = mapper(parsedVariables);
 
 		// we successfully checked all required parameters, no need to display usage
 		usageAfterError = "";
-		fn.apply(null, args);
+		await fn.apply(null, args);
 	} catch (err) {
 		console.error(err.message);
 		if (usageAfterError)
