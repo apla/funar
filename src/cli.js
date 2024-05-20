@@ -57,6 +57,10 @@ export function convertContractToOptions(contract) {
 		if (varMeta.alias) {
 			option.short = varMeta.alias;
 		}
+		// TODO: provide setting not to use long options
+		if (varMeta.name.length === 1) {
+			option.short = varMeta.name;
+		}
 
         argPlacement[name] = varMeta;
 

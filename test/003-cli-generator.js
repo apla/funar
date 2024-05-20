@@ -117,9 +117,25 @@ export function testXYZ ({x, y, z}) {
 
 	});
 
+	it("should echo a and b, short options", async () => {
+
+		const testABOut = await execCmd("node ./test/fixtures/cli-output.js testAB -a hello -b world");
+
+		assert.strictEqual(testABOut.trim(), "hello\nworld");
+
+	});
+
 	it("should sum 3 numbers", async () => {
 
 		const testXYZOut = await execCmd("node ./test/fixtures/cli-output.js testXYZ --x 25 --y 50 --z 75");
+
+		assert.strictEqual(testXYZOut.trim(), "150");
+
+	});
+
+	it("should sum 3 numbers, short options", async () => {
+
+		const testXYZOut = await execCmd("node ./test/fixtures/cli-output.js testXYZ -x 25 -y 50 -z 75");
 
 		assert.strictEqual(testXYZOut.trim(), "150");
 
