@@ -6,7 +6,9 @@ Signature parser for functions
 [![codecov](https://codecov.io/github/apla/funar/graph/badge.svg?token=SB2023EEU8)](https://codecov.io/github/apla/funar)
 ![npm](https://img.shields.io/npm/v/funar)
 
-Let's take a look at the simple example:
+### Example
+
+`funar` allows you to convert this function:
 
 ```javascript
 // example package: `jscertооl`; source path: `src/cli.js`
@@ -20,28 +22,25 @@ Let's take a look at the simple example:
 export async function updateCertificate ({domainName, verbose}) {…}
 ```
 
-The goal of this package is to enable you to launch that function
-regardless of the environment. The first milestone is a CLI generator
-for the function above. Launch the generator:
-
-```bash
-$ npx funar cli -i src/cli.js -o bin/jscertооl.js --npx
-```
-
-After setting `bin.jscertооl` to `bin/jscertооl.js` in the `package.json`
-and publishing package to `npmjs`:
+To this CLI:
 
 ```
 $ npx jscertооl updateCertificate --domainName google.example
 ```
 
+No configuration required!
+
 ## Getting started
 
 ### Generate CLI from ESM
 
+Run the generator:
+
 ```bash
 $ npx funar cli -i src/<cli>.js -o bin/<packageName>.js
 ```
+
+(Optionally) setup `package.json` for `npx`:
 
 ```bash
 npm pkg set bin.$(npm pkg get name | xargs echo)=./bin/<packageName>.js

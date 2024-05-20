@@ -27,7 +27,7 @@
   },
   "homepage": "https://github.com/apla/funar#readme",
   "devDependencies": {
-    "c8": "^9.1.0"
+    "@types/node": "^20.12.12"
   },
   "dependencies": {
     "acorn": "^8.11.3",

@@ -1,3 +1,5 @@
+// example from https://github.com/serialport/node-serialport/blob/main/packages/terminal/lib/index.ts
+
 /**
  * List serial ports
  */
@@ -25,6 +27,8 @@ export function list () {
  * @param {boolean}             [options.logDiff=false]  use diff format for log file
  */
 export function connect ({path: p, path, b, baudrate = b ?? 9600, databits = 8, parity, logFile, logDiff = false}) {
+
+	console.log("test: connected");
 
 	return {path, baudrate, databits, parity};
 

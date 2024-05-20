@@ -382,8 +382,6 @@ function ab ({path: p, path, logfile: l, logfile = "funar.log"}) {}`;
 
 		assert.strictEqual(contract.name, "ab");
 
-		console.log(contract);
-
 		assert.strictEqual(Object.keys(contract.vars).length, 2);
 
 		const pathParam = contract.vars.path;
@@ -417,8 +415,6 @@ function ac ({b, baudrate = b, d, databits = d ?? 8}) {}`;
 		const contract = contracts[0];
 
 		assert.strictEqual(contract.name, "ac");
-
-		console.log(contract);
 
 		assert.strictEqual(Object.keys(contract.vars).length, 2);
 
