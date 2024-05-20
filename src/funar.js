@@ -2,10 +2,7 @@
 /** @typedef {import('comment-parser').Spec} JSDocTag */
 import {parse as commentParser } from 'comment-parser';
 
-import * as acorn from 'acorn';
-const parse = acorn.parse;
-
-import {getVarsFromDeclaration} from './ast.js';
+import { getVarsFromSource } from './ast.js';
 
 import {TypeDef} from './typedef.js';
 
@@ -54,18 +51,14 @@ import {TypeDef} from './typedef.js';
  */
 
 
-function findNodeIndexForComment (ast, nodeIndex, commentNode) {
-	while (
-		ast.body[nodeIndex].start < commentNode.end
-		&& nodeIndex < ast.body.length
-	) {
-		nodeIndex ++;
-	}
-
-	return nodeIndex;
-}
-
-function findPrecedingCommentNode (currNode, jsDocNodes, prevDocNodeIdx) {
+/**
+ *
+ * @param {number} currNodeEnd end position of the current node
+ * @param {FunJSDoc[]} jsDocNodes array of JSDoc comment nodes
+ * @param {number | undefined} prevDocNodeIdx previous JSDoc comment node index
+ * @returns {number | undefined}
+ */
+function findPrecedingCommentNode (currNodeEnd, jsDocNodes, prevDocNodeIdx) {
 	if (!jsDocNodes || jsDocNodes.length === 0) {
 		return;
 	}
@@ -74,7 +67,7 @@ function findPrecedingCommentNode (currNode, jsDocNodes, prevDocNodeIdx) {
 
 	while (
 		(jsDocNodes.length > docNodeIdx + 1)
-		&& (jsDocNodes[docNodeIdx + 1].end < currNode.end)
+		&& (jsDocNodes[docNodeIdx + 1].end < currNodeEnd)
 	) {
 		docNodeIdx ++;
 	}
@@ -350,25 +343,6 @@ function findTypedefs (docNodes) {
 
 }
 
-/**
- *
- * @param {acorn.VariableDeclaration} entity
- */
-function processNamedVarDeclaration (entity) {
-	let name, declaration;
-	// ignoring additional declarations
-	const firstDeclaration = entity.declarations[0];
-	if (
-		firstDeclaration.type === "VariableDeclarator"
-		&& firstDeclaration.id.type === "Identifier"
-		&& firstDeclaration.init
-		&& firstDeclaration.init.type === "ArrowFunctionExpression"
-	) {
-		name = firstDeclaration.id.name;
-		declaration = firstDeclaration.init;
-	}
-	return {name, declaration};
-}
 
 /**
  * Parse source and return all found function contracts
@@ -380,48 +354,27 @@ export function parseSource (source, options) {
 	/** @type {FunJSDoc[]} */
 	const fnDocs = [];
 
-	const ast = parse (source, {
-		onComment (isBlock, text, start, end) {
-			const jsdoc = parseJsdocFromComment (isBlock, text, start, end);
-			if (jsdoc) fnDocs.push(jsdoc);
-		},
-		ecmaVersion: 'latest',
-		locations: true,
-		allowImportExportEverywhere: true,
-	});
+	function onComment (isBlock, text, start, end) {
+		const jsdoc = parseJsdocFromComment (isBlock, text, start, end);
+		if (jsdoc) fnDocs.push(jsdoc);
+	}
 
 	const typedefs = findTypedefs(fnDocs);
 
 	let nodeIndex = 0;
+	/** @type {number | undefined} */
 	let docNodeIdx;
+
+	const astMeta = getVarsFromSource(source, onComment);
 
 	// limit by top level functions only
 	// TODO: move to ast
-	const fns = ast.body.map ((entity, entityIdx) => {
+	const fns = astMeta.map (({name, vars, pos}) => {
 
 		/** @satisfies {'function'|'express-handler'|'cli-handler'} */
 		let kind = "function";
 		let method;
 		let path;
-
-		let declaration, unwrapped = entity;
-		let name;
-
-		if (unwrapped.type ===  'ExportNamedDeclaration' && unwrapped.declaration) {
-			unwrapped = unwrapped.declaration;
-		}
-
-		if (unwrapped.type === 'FunctionDeclaration') {
-			declaration = unwrapped;
-			name = declaration.id.name;
-		} else if (unwrapped.type === 'VariableDeclaration') {
-			// ignoring additional declarations
-			({name, declaration} = processNamedVarDeclaration(unwrapped));
-		}
-
-		if (!declaration || !name) return;
-
-		const vars = getVarsFromDeclaration(declaration.params);
 
 		/** @type {FunContract} */
 		const funContract = {
@@ -432,7 +385,7 @@ export function parseSource (source, options) {
 		};
 
 		docNodeIdx = findPrecedingCommentNode (
-			ast.body[entityIdx],
+			pos.end,
 			fnDocs,
 			docNodeIdx
 		);
@@ -442,7 +395,7 @@ export function parseSource (source, options) {
 		}
 
 		// found commend which starts earlier than preceding entity end
-		if (entityIdx > 0 && ast.body[entityIdx - 1].end > fnDocs[docNodeIdx].start) {
+		if (pos.prev && pos.prev > fnDocs[docNodeIdx].start) {
 			return funContract;
 		}
 
@@ -462,27 +415,3 @@ export function parseSource (source, options) {
 	return fns;
 }
 
-/**
- * @param {string} str string to parse
- * @returns {number|undefined}
- */
-export function parseFloatFromString (str) {
-	const value = parseFloat(str);
-	if (isNaN(value)) {
-		return undefined;
-	}
-	return value;
-}
-
-/**
- *
- * @param {string} str string to parse
- * @returns {bigint|undefined}
- */
-export function parseBigIntFromString (str) {
-	try {
-		return BigInt(str);
-	} catch (e) {
-		return undefined;
-	}
-}

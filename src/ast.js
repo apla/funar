@@ -2,6 +2,7 @@
 /* * @typedef {import('node-estree').ESTree} ESTree */
 // import * as ESTree from 'estree';
 import * as acorn from "acorn";
+const parse = acorn.parse;
 
 /** @typedef {import('./funar.js').FunParameter} FunParameter */
 
@@ -143,4 +144,79 @@ export function getVarsFromDeclaration (astParams) {
 	}, {});
 
 	return params;
+}
+
+
+/**
+ *
+ * @param {acorn.VariableDeclaration} entity
+ */
+function processNamedVarDeclaration (entity) {
+	let name, declaration;
+	// ignoring additional declarations
+	const firstDeclaration = entity.declarations[0];
+	if (
+		firstDeclaration.type === "VariableDeclarator"
+		&& firstDeclaration.id.type === "Identifier"
+		&& firstDeclaration.init
+		&& firstDeclaration.init.type === "ArrowFunctionExpression"
+	) {
+		name = firstDeclaration.id.name;
+		declaration = firstDeclaration.init;
+	}
+	return {name, declaration};
+}
+
+/**
+ *
+ * @param {string} source js file contents
+ * @param {onCommentCb} onComment on comment callback
+ * @returns {{name: string; vars: {[x: string]: FunParameter}; pos: {start: number; end: number; prev: number | undefined}}[]}
+ */
+export function getVarsFromSource (source, onComment) {
+	const ast = parse (source, {
+		onComment,
+		ecmaVersion: 'latest',
+		locations: true,
+		allowImportExportEverywhere: true,
+	});
+
+	const astMeta = ast.body.map ((entity, entityIdx) => {
+
+		/** @satisfies {'function'|'express-handler'|'cli-handler'} */
+		let kind = "function";
+		let method;
+		let path;
+
+		let declaration, unwrapped = entity;
+		let name;
+
+		if (unwrapped.type ===  'ExportNamedDeclaration' && unwrapped.declaration) {
+			unwrapped = unwrapped.declaration;
+		}
+
+		if (unwrapped.type === 'FunctionDeclaration') {
+			declaration = unwrapped;
+			name = declaration.id.name;
+		} else if (unwrapped.type === 'VariableDeclaration') {
+			// ignoring additional declarations
+			({name, declaration} = processNamedVarDeclaration(unwrapped));
+		}
+
+		if (!declaration || !name) return;
+
+		const vars = getVarsFromDeclaration(declaration.params);
+
+		return {
+			name,
+			vars,
+			pos: {
+				prev: entityIdx > 0 ? ast.body[entityIdx - 1].end : undefined,
+				start: entity.start,
+				end: entity.end,
+			}
+		}
+	}).filter(item => item !== undefined);
+
+	return astMeta;
 }
