@@ -1,9 +1,14 @@
 /**
- * List ports
+ * List serial ports
  */
-function list () {
+export function list () {
 
 }
+
+/**
+ * @typedef SerialParity
+ * @type {"none"|"even"|"odd"}
+ */
 
 /**
  * Connect to the serial port
@@ -19,44 +24,28 @@ function list () {
  * @param {string}              [options.logFile]        log file path
  * @param {boolean}             [options.logDiff=false]  use diff format for log file
  */
-export function connect ({p, path = p, b, baudrate = b ?? 9600, databits = 8, parity, logFile, logDiff = false}) {
-
+export function connect ({path: p, path, b, baudrate = b ?? 9600, databits = 8, parity, logFile, logDiff = false}) {
 
 	return {path, baudrate, databits, parity};
 
 }
 
 /**
- * @ typedef SerialParity
- * @union {string}
+ * Connect to the serial port
+ * @param {string}              path             serial port path
+ * @param {number}              [baudrate=9600]  baudrate
+ * @param {5|6|7|8}             [databits=8]     data bits
+ * @param {"none"|"even"|"odd"} [parity="none"]  parity bits
+ * @param {1|1.5|2}             [stopbits=1]     stop bits
+ * @param {boolean}             [reconnect=true] retry connection
+ * @param {boolean}             [noEcho=false]   don't print characters as you type them
+ * @param {string}              [newline="LF"]   newline symbol on enter
+ * @param {string}              [logFile]        log file path
+ * @param {boolean}             [logDiff=false]  use diff format for log file
  */
-const SerialParity = [
-	"none",
-	"even",
-	"odd"
-];
+export function connect2 (path, baudrate = 9600, databits = 8, parity, stopbits = 1, reconnect = true, noEcho = false, newline = "LF", logFile, logDiff = false) {
 
-/**
- * @typedef SerialOptions
- * @type {Object}
- * @prop {string}              path             serial port path
- * @prop {number}              [baudrate=9600]  baudrate
- * @prop {5|6|7|8}             [databits=8]     data bits
- * @prop {SerialParity}        [parity="none"]  parity bits
- * @prop {1|1.5|2}             [stopbits=1]     stop bits
- * @prop {boolean}             [reconnect=true] retry connection
- * @prop {boolean}             [noEcho=false]   don't print characters as you type them
- * @prop {string}              [newline="LF"]   newline symbol on enter
- * @prop {string}              [logFile]        log file path
- * @prop {boolean}             [logDiff=false]  use diff format for log file
- */
+	return {path, baudrate, databits, parity};
 
-// app.command (
-// 	'connect',
-// 	/** @param {SerialOptions} options connect options */
-// 	({p, path = p, b = 9600, baudrate = b, parity, logFile, logDiff}) => {
-
-// 	const xxx = baudrate;
-
-// });
+}
 

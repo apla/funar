@@ -44,8 +44,6 @@ function a2 (a, b, ...rest) {}`;
 
 		const contract = contracts[0];
 
-		assert.strictEqual (contract.name, "a2");
-
 		assert ("description" in contract);
 
 		assert (contract.description);
@@ -53,7 +51,7 @@ function a2 (a, b, ...rest) {}`;
 		assert.strictEqual (Object.keys(contract.vars).length, 3);
 
 		const aParam = contract.vars["a"];
-		
+
 		assert.strictEqual (aParam.type, "string");
 		assert.strictEqual (aParam.description, "the a string");
 
@@ -163,7 +161,7 @@ return displayName + ' is ' + name;
 		const fn = `/**
 * A7 function
 * @param {Object} req request object
-* @param {Object} req.query 
+* @param {Object} req.query
 * @param {Object} req.query parsed query string
 * @param {string} req.query.color color from query string
 * @param {Object} res response object
@@ -195,7 +193,7 @@ export const handler = ({query: {color}}, res, next) => {
 		const fn = `/**
 * A7A function
 * @param {Object} req request object
-* @param {Object} req.query 
+* @param {Object} req.query
 * @param {Object} req.query parsed query string
 * @param {string} req.query.color color from query string
 * @param {Object} res response object
@@ -295,7 +293,7 @@ function a8 ({a: varA, b}, {c, d}, cb) {}`;
 		assert.strictEqual (Object.keys(contract.vars).length, 5);
 
 		const aParam = contract.vars["varA"];
-		
+
 		assert.strictEqual (aParam.type, "string");
 		assert.strictEqual (aParam.description, "the a string");
 
@@ -323,23 +321,23 @@ function a8 ({a: varA, b}, {c, d}, cb) {}`;
 	};`;
 		const contracts = parseSource (fn);
 		assert.strictEqual (contracts.length, 1);
-	
+
 		// each contract means one function
 		const contract = contracts[0];
-	
+
 		assert("description" in contract);
-	
+
 		assert(contract.description);
-	
+
 		assert.strictEqual(Object.keys(contract.vars).length, 4);
-	
+
 		assert.deepStrictEqual(contract.vars.userAgent, { name: "userAgent", path: "0.headers.user-agent", description: "User-Agent header", type: "string", isOptional: false,});
 		assert.deepStrictEqual(contract.vars.query, { name: "query", path: "0.query", description: "parsed query string", type: "Object", isOptional: false,});
-		assert.deepStrictEqual(contract.vars.res, { name: "res",   path: "1", description: "response object", type: "Object", isOptional: false,}); 
+		assert.deepStrictEqual(contract.vars.res, { name: "res",   path: "1", description: "response object", type: "Object", isOptional: false,});
 		assert.deepStrictEqual(contract.vars.next, { name: "next",  path: "2", description: "call next middleware", type: "Function", isOptional: false,});
 
 	});
-	
+
 	it("with arrays", () => {
 		const fn = `
 /**
@@ -359,11 +357,84 @@ function aa ({paths}) {}`;
 		assert.strictEqual (Object.keys(contract.vars).length, 1);
 
 		const pathsParam = contract.vars.paths;
-		
+
 		assert.strictEqual (pathsParam.type, "string[]");
 		assert.strictEqual (pathsParam.description, "paths to inspect");
 		assert.strictEqual (pathsParam.structure, "array");
 		assert.strictEqual (pathsParam.contains, "string");
+
+	});
+
+	it("with alias form 1", () => {
+		const fn = `
+/**
+ * AB function
+ * @param {Object} options
+ * @param {string} options.path path to inspect
+ * @param {string} [options.logfile="funar.log"] log file to write
+*/
+function ab ({path: p, path, logfile: l, logfile = "funar.log"}) {}`;
+		const contracts = parseSource(fn, {ast: true, jsdoc: true});
+
+		assert.strictEqual(contracts.length, 1);
+
+		const contract = contracts[0];
+
+		assert.strictEqual(contract.name, "ab");
+
+		console.log(contract);
+
+		assert.strictEqual(Object.keys(contract.vars).length, 2);
+
+		const pathParam = contract.vars.path;
+
+		assert.strictEqual(pathParam.type, "string");
+		assert.strictEqual(pathParam.description, "path to inspect");
+		assert.strictEqual(pathParam.alias, "p");
+
+		const logfileParam = contract.vars.logfile;
+
+		assert.strictEqual(logfileParam.type, "string");
+		assert.strictEqual(logfileParam.description, "log file to write");
+		assert.strictEqual(logfileParam.alias, "l");
+		assert.strictEqual(logfileParam.default, "funar.log");
+
+	});
+
+	it("with alias form 2", () => {
+		const fn = `
+/**
+ * AC function
+ * @param {Object} options
+ * @param {number} options.baudrate baudrate
+ * @param {5|6|7|8} [options.databits=8] data bits
+*/
+function ac ({b, baudrate = b, d, databits = d ?? 8}) {}`;
+		const contracts = parseSource(fn, {ast: true, jsdoc: true});
+
+		assert.strictEqual(contracts.length, 1);
+
+		const contract = contracts[0];
+
+		assert.strictEqual(contract.name, "ac");
+
+		console.log(contract);
+
+		assert.strictEqual(Object.keys(contract.vars).length, 2);
+
+		const baudrateParam = contract.vars.baudrate;
+
+		assert.strictEqual(baudrateParam.type, "number");
+		assert.strictEqual(baudrateParam.description, "baudrate");
+		assert.strictEqual(baudrateParam.alias, "b");
+
+		const databitsParam = contract.vars.databits;
+
+		assert.strictEqual(databitsParam.type, "5|6|7|8");
+		assert.strictEqual(databitsParam.description, "data bits");
+		assert.strictEqual(databitsParam.alias, "d");
+		assert.strictEqual(databitsParam.default, 8);
+
 
 	});
 

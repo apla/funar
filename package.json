@@ -4,6 +4,7 @@
   "description": "Signature parser for functions",
   "main": "index.js",
   "type": "module",
+  "bin": "bin/funar.js",
   "scripts": {
     "test-jasmine": "jasmine --config=test/.jasmine.json",
     "test": "node --test test/*.js",
