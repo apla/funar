@@ -168,10 +168,32 @@ function processNamedVarDeclaration (entity) {
 }
 
 /**
- *
+ * Acorn onComment callback
+ * @callback onCommentCb
+ * @param {boolean} isBlock
+ * @param {string} text
+ * @param {number} start
+ * @param {number} end
+ * @param {acorn.Position} [startLoc]
+ * @param {acorn.Position} [endLoc]
+ */
+
+/**
+ * @typedef FunAstMeta
+ * @type {Object}
+ * @prop {string} name                      function name
+ * @prop {Object<string,FunParameter>} vars function variables metadata
+ * @prop {Object} pos                       function source position
+ * @prop {number} pos.start                 function position start
+ * @prop {number} pos.end                   function position end
+ * @prop {number | undefined} pos.prev      preceding function position end
+ */
+
+/**
+ * Retrieve all functions with their variables from destructured parameters of function declarations
  * @param {string} source js file contents
  * @param {onCommentCb} onComment on comment callback
- * @returns {{name: string; vars: {[x: string]: FunParameter}; pos: {start: number; end: number; prev: number | undefined}}[]}
+ * @returns {FunAstMeta[]}
  */
 export function getVarsFromSource (source, onComment) {
 	const ast = parse (source, {
