@@ -11,12 +11,12 @@ const exec = promisify(execWithCb);
  * @param {string} command command to execute
  * @returns {Promise<string>}
  */
-async function execCmd(command) {
+async function execCmd(command, {cwd = process.cwd()} = {}) {
 	try {
-		const { stdout, stderr } = await exec(command);
+		const { stdout, stderr } = await exec(command, {cwd});
 		return stdout;
 	} catch (error) {
-		throw new Error(`Command failed with error code ${error.code}: ${error.stdout} ${error.stderr}`);
+		throw new Error(`Command failed with error code: ${error.code}\n${error}\nOutput: ${error.stdout} ${error.stderr}`);
 	}
 }
 
@@ -49,6 +49,18 @@ export function testXYZ ({x, y, z}) {
 }
 
 		`);
+
+		await writeFile("./test/fixtures/package.json", `
+		{
+			"name": "fixtures",
+			"version": "1.0.0",
+			"type": "module",
+			"author": "",
+			"license": "ISC",
+			"description": ""
+		  }
+
+		`);
 	});
 
 	it("should return stdout for a successful command", async () => {
@@ -68,7 +80,21 @@ export function testXYZ ({x, y, z}) {
 
 	it("should generate a file from example", async () => {
 
-		await execCmd("node ./bin/funar.js gen -t cli -i ./test/fixtures/cli-input.js -o ./test/fixtures/cli-output.js");
+		await execCmd("node ./bin/funar.js cli -i ./test/fixtures/cli-input.js -o ./test/fixtures/cli-output.js");
+
+	});
+
+	it("should generate a file from example cwd fixtures", async () => {
+
+		await execCmd(
+			"node ../../bin/funar.js cli -i ./cli-input.js -o ./cli-output.js",
+			{cwd: "./test/fixtures"}
+		);
+
+		await execCmd(
+			"npm pkg set bin.$(npm pkg get name | xargs echo)=./cli-output.js",
+			{cwd: "./test/fixtures"}
+		);
 
 	});
 

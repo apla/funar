@@ -14,11 +14,10 @@ import { runScript, serializeContracts } from "../src/cli.js";
  * and specify the output file in the "bin" folder.
  * @summary Produce a CLI tool in the output file to call exported functions from an input file.
  * @param {Object} options
- * @param {"cli"}  options.type type of output
  * @param {string} options.input input file name
  * @param {string} options.output output file name
  */
-export async function gen ({type: t, type, input: i, input, output: o, output}) {
+export async function cli ({input: i, input, output: o, output}) {
 
 	const {contracts, exports} = await parseSourceFile(input);
 
