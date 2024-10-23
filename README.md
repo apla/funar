@@ -25,7 +25,14 @@ export async function updateCertificate ({domainName, verbose}) {…}
 To this CLI:
 
 ```
-$ npx jscertооl updateCertificate --domainName google.example
+$ npx jscertооl updateCertificate
+Missing required parameter: domainName
+Update certificate on local machine using an existing TLS certificate
+Usage: updateCertificate [options]
+Required:
+  --domainName=<string>  Domain name to download the certificate
+Optional:
+  --verbose              Be verbose
 ```
 
 No configuration required!
@@ -77,8 +84,8 @@ Here's the process:
 Additional features:
 
  * [ ] Function name and parameter autocompletion;
- * [*] Generate usage for a function
- * [*] Generate usage for an executable to list all the functions
+ * [x] Generate usage for a function
+ * [x] Generate usage for an executable to list all the functions
  * [ ] Support …rest to read extra arguments
 
 
